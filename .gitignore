@@ -1,0 +1,14 @@
+sessions/
+.env
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+helpers/audiotee/.build/
+helpers/audiotee/bin/
+helpers/audiotee/src/
+*.wav
+!tests/fixtures/*.wav
+.DS_Store
+uv.lock.bak

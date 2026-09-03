@@ -1,0 +1,64 @@
+# Livecaster configuration.
+#
+# Copy to `livecaster.toml` next to your outline, or to ~/.config/livecaster/livecaster.toml.
+# Every key can be overridden per run:  livecaster run osnova.md --set llm.tick_interval_s=15
+# Environment variables work too:       LIVECASTER_LLM__TICK_MODEL=deepseek-v4-pro-0813
+
+[audio]
+mode = "remote"       # live (one room) | remote (Zencastr, Meet, Riverside …)
+record = true         # keep a 16 kHz WAV backup per channel in the session directory
+record_native = false # also keep the untouched device-rate stream
+
+# --- In person, one shared microphone: keep a single channel and drop the Guest block.
+[[audio.channels]]
+name = "Host"
+source = "device:MacBook Pro Microphone"   # device:<name or index> | audiotee:<app or pid> | file:<path>
+channel_index = 0                          # one channel of a multi-channel interface; omit to average
+
+# --- Remote: the guest arrives through the browser. Wear headphones.
+[[audio.channels]]
+name = "Guest"
+source = "audiotee:Google Chrome"          # macOS 14.2+, after ./helpers/audiotee/build.sh
+# source = "device:BlackHole 2ch"          # macOS fallback: BlackHole + a Multi-Output Device
+# source = "device:alsa_output.…analog-stereo.monitor"   # Linux: pactl list sources short
+is_direct = true                           # wins the cross-talk dedupe against the microphone
+
+[stt]
+engine = "auto"        # auto | parakeet-mlx | onnx-asr | whisper-mlx | faster-whisper
+model = ""             # empty = the engine's default model
+language = "auto"      # auto | sk | cs | en | …  (Parakeet always auto-detects)
+vad_threshold = 0.5
+silence_ms = 600       # silence that ends an utterance
+min_speech_ms = 300    # shorter bursts are dropped
+max_utterance_s = 20   # hard cut, at the quietest frame of the last 3 s
+preroll_ms = 300
+
+[llm]
+base_url = "https://api.venice.ai/api/v1"
+# -fast costs twice as much per output token but answers in ~9 s instead of ~38 s.
+tick_model = "deepseek-v4-flash-0731-fast"
+final_model = "deepseek-v4-flash-0731"     # deepseek-v4-pro-0813 for a better wrap-up
+tick_interval_s = 25
+min_new_words = 25                          # do not tick before this much was said
+burst_words = 120                           # tick immediately past this
+transcript_window_words = 1200
+reasoning_effort_tick = "none"              # none | low | high — see DECISIONS.md (D8)
+reasoning_effort_final = "high"
+temperature = 0.2
+cover_threshold = 0.7                       # confidence needed to strike a topic through
+touch_threshold = 0.4
+heading_cover_threshold = 0.85              # confidence needed to cover a whole section
+manual_lock_minutes = 10                    # after you un-cover an item, the LLM keeps out
+preflight = true                            # one call before the session: questions and triggers
+
+[wrapup]
+resolve_links = false   # web search for missing URLs; slower and costs more
+
+[ui]
+host = "127.0.0.1"      # 0.0.0.0 to open the map on a tablet on your LAN
+port = 8765
+open_browser = true
+theme = "dark"          # dark | light
+
+[session]
+dir = "sessions"
