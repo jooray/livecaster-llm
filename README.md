@@ -138,7 +138,7 @@ relative to that mark.
 |---|---|
 | `livecaster run <outline.md> [--mode live\|remote] [--resume DIR] [--slug S] [--no-preflight] [--set k=v]` | Start a session. |
 | `livecaster devices` | List input devices (and AudioTee candidate processes on macOS). |
-| `livecaster replay (--transcript F \| --wav F \| --session DIR) --outline M [--speed N] [--mock-llm] [--serve]` | Run the pipeline from a file. |
+| `livecaster replay <file\|dir> [--outline M] [--speed N] [--mock-llm] [--serve]` | Run the pipeline from a file. The source can also be given as `--transcript`, `--wav` or `--session`. |
 | `livecaster wrapup <session_dir> [--model M] [--resolve-links]` | Re-run the wrap-up on an existing session. |
 | `livecaster export <session_dir>` | Re-render Markdown/SRT from existing JSON, no LLM calls. |
 | `livecaster check` | Venice key and models, STT self-test, devices, AudioTee, permissions. |

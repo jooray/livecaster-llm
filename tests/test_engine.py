@@ -315,3 +315,70 @@ async def test_stt_result_marshalling(engine: Engine, monkeypatch):
     assert engine.transcript.segments[-1].speaker == "Host"  # two channels in this fixture
     assert engine.transcript.segments[-1].engine == "dummy"
     await engine.shutdown()
+
+
+async def test_outline_watcher_reloads_on_an_edit(
+    tmp_path: Path, osnova_path: Path, config: Config, fixtures: Path
+):
+    """FR-04 end to end: edit the file on disk, the watcher pushes a fresh outline."""
+    import threading
+
+    from livecaster.engine import watch_outline
+
+    working = tmp_path / "osnova.md"
+    working.write_text(osnova_path.read_text(encoding="utf-8"), encoding="utf-8")
+    store = create_session(working, config, mode="replay", base_dir=tmp_path / "sessions")
+    engine = Engine(store, config, MockLLM(fixtures / "tick_responses"), clock=ManualClock())
+    await engine.startup()
+
+    reloaded = asyncio.Event()
+    store.subscribe(lambda kind, payload: reloaded.set() if kind == "state" else None)
+
+    stop = threading.Event()
+    watch_outline(engine, stop)
+    try:
+        await asyncio.sleep(0.4)  # let the watcher settle before touching the file
+        working.write_text(
+            working.read_text(encoding="utf-8") + "\n- Bod pridaný počas nahrávania\n", encoding="utf-8"
+        )
+        await asyncio.wait_for(reloaded.wait(), timeout=10)
+    finally:
+        stop.set()
+    assert len(store.outline.leaves()) == 42
+    assert any(n.text.startswith("Bod pridaný") for n in store.outline.nodes)
+    assert (store.dir / "outline.1.md").is_file()
+    await engine.shutdown()
+
+
+async def test_start_capture_failure_leaves_the_session_idle(
+    tmp_path: Path, osnova_path: Path, config: Config, fixtures: Path
+):
+    config.audio.channels = [ChannelConfig(name="Host", source=f"file:{tmp_path / 'missing.wav'}")]
+    config.audio.record = False
+    store = create_session(osnova_path, config, mode="live", base_dir=tmp_path / "sessions")
+    engine = Engine(store, config, MockLLM(fixtures / "tick_responses"), clock=ManualClock())
+    toasts: list[dict] = []
+    store.subscribe(lambda kind, payload: toasts.append(payload) if kind == "toast" else None)
+    await engine.startup()
+
+    with pytest.raises(FileNotFoundError):
+        await engine.start_capture()
+    assert store.session.status == "idle"
+    assert engine.channels == []
+    assert engine.stt is None
+    assert any("Cannot start capture" in t["text"] for t in toasts)
+    await engine.shutdown()
+
+
+async def test_duration_tracks_the_clock_while_running(store, config: Config, fixtures: Path):
+    """A crash after a long silence must not rewind the resumed clock."""
+    clock = ManualClock()
+    engine = Engine(store, config, MockLLM(fixtures / "tick_responses"), clock=clock)
+    await engine.startup()
+    store.session.status = "running"
+    engine.add_segment(Segment(id="S1", channel="Host", speaker="Host", t0=0, t1=10, text="ahoj"))
+    clock.set(600.0)
+    await asyncio.sleep(10.2)
+    assert store.session.duration_s >= 600.0
+    assert engine.transcript.duration() == 10.0
+    await engine.shutdown()

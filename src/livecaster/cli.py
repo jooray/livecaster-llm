@@ -122,8 +122,14 @@ async def _run_session(
             store.transcript_path, [c.name for c in store.session.channels if c.is_direct]
         )
         engine.reasoner.transcript = engine.transcript
-        last = engine.transcript.duration()
-        engine.clock = type(engine.clock)(offset=last)  # continue the clock
+        # Continue from the furthest point the old session reached, not just the last
+        # utterance: a pause or a long silence before the crash still happened.
+        last = max(
+            engine.transcript.duration(),
+            store.session.duration_s,
+            store.session.sync_marks[-1] if store.session.sync_marks else 0.0,
+        )
+        engine.clock = type(engine.clock)(offset=last)
         engine.reasoner.clock = engine.clock
         console.print(f"  {len(engine.transcript.segments)} segments, clock at {fmt_hms(last)}")
 
@@ -208,6 +214,10 @@ def devices() -> None:
 
 @app.command()
 def replay(
+    source: Annotated[
+        Path | None,
+        typer.Argument(help="WAV, transcript.jsonl or session directory (same as the options below)"),
+    ] = None,
     transcript: Annotated[Path | None, typer.Option(help="transcript.jsonl to replay")] = None,
     wav: Annotated[Path | None, typer.Option(help="WAV file to replay through STT")] = None,
     session: Annotated[Path | None, typer.Option(help="Session directory to replay")] = None,
@@ -223,6 +233,13 @@ def replay(
 ) -> None:
     """Run the pipeline from a file instead of a microphone."""
     cfg = _config(config, set_)
+    if source is not None:
+        if source.is_dir():
+            session = session or source
+        elif source.suffix.lower() == ".jsonl":
+            transcript = transcript or source
+        else:
+            wav = wav or source
     if session and not transcript:
         transcript = session / "transcript.jsonl"
         if outline is None:

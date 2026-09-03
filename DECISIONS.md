@@ -137,3 +137,33 @@ past that: a full replay at `--speed 0`, which fires ticks back to back with no 
 lost five of seventeen ticks to a 45 s `ReadTimeout`. Ticks never overlap and a skipped tick is
 only a missed update, but the tokens are paid for either way, so the timeout is now 60 s. A live
 session ticks once per 25 s and does not push the endpoint nearly this hard.
+
+## D15 — Verified end to end before hand-off (M4, M7)
+
+Checked on this machine, not just in tests:
+
+- **Replay against the real API.** 60 Slovak segments, 13 ticks, $0.019, show notes entirely in
+  Slovak with sensible chapters. Two bugs came out of it and are fixed: D13 (the document title
+  covering everything) and evidence timestamps, which the model sometimes returns as `t: 1.0` for
+  something said two minutes in — `apply_tick` now clamps them into the transcript window that was
+  actually sent.
+- **The UI on a replay.** Strikethrough with time badges, heading fractions, the hot bar with rank
+  keycap, reason and segue, `● now`, edge indicators, the side panel tabs, both themes, and manual
+  marks arriving live over the socket. Editing `ui/styles.css` and restarting the server made the
+  open tab reload itself, which is FR-27 working.
+- **A live session from a file channel**: Start, VAD segmentation, the STT worker, sync mark,
+  Finish, and all five exports. Then `--resume` on the same directory.
+- **`uv tool install .`** installs a working `livecaster` executable.
+
+Two fixes came from the live run. `space` now starts an idle session instead of sending a
+`resume` that does nothing, and a capture that cannot start (a missing device or file) rolls back
+to `idle` and reaches the UI as a toast instead of only appearing as a 500 in the terminal.
+
+## D16 — Still needs the human (checkpoints 2 and 5)
+
+- `tests/fixtures/speech_sk_30s.wav` and `speech_en_30s.wav` are not in the repository. The plan
+  asks the host to record them; a synthesised sample would not answer the question the checkpoint
+  exists for, which is whether Parakeet is good enough on this host's Slovak. `livecaster check`
+  falls back to a silence self-test and prints the ffmpeg command to record one.
+- Parakeet quality in Slovak, Czech and English (checkpoint 2), the remote two-channel test
+  (checkpoint 3) and the field test (M8) all need a microphone and a real conversation.

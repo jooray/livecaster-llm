@@ -136,9 +136,12 @@ def test_ui_files_parse_as_expected():
         assert f'key === "{key}"' in app_js
     assert "location.reload()" in app_js
     assert "localStorage" in app_js
+    assert 'action = status === "running" ? "pause"' in app_js
+    assert "drawSparkline" in app_js and "showUsage" in app_js
     css = (UI_DIR / "styles.css").read_text(encoding="utf-8")
     assert "--font: 18px" in css
     for state in ["warm", "touched", "covered", "skipped", "hot", "pinned", "current", "selected"]:
         assert f".node.{state}" in css
     html = (UI_DIR / "index.html").read_text(encoding="utf-8")
     assert json.dumps("edge-up")[1:-1] in html
+    assert "sparkline" in html and "usage-body" in html

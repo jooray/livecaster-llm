@@ -91,6 +91,16 @@ body { display: flex; flex-direction: column; }
 .pill.err { color: var(--danger); border-color: var(--danger); }
 .pill.warn { color: var(--hot); border-color: var(--hot); }
 .pill.ok { color: var(--ok); }
+.pill.clickable { cursor: pointer; }
+.pill.clickable:hover { border-color: var(--accent); }
+
+.sparkline { width: 90px; height: 22px; color: var(--fg-mute); }
+.sparkline.slow { color: var(--hot); }
+
+#usage-body table { border-collapse: collapse; font-size: 15px; }
+#usage-body th, #usage-body td { padding: 4px 14px 4px 0; text-align: left; }
+#usage-body th { color: var(--fg-mute); font-weight: 600; font-size: 13px; text-transform: uppercase; }
+#usage-body td.num { text-align: right; font-variant-numeric: tabular-nums; }
 
 .meter { display: flex; align-items: center; gap: 6px; font-size: 14px; color: var(--fg-dim); }
 .meter .bars { display: flex; gap: 2px; }

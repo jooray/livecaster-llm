@@ -224,8 +224,23 @@ class Engine:
                 on_finished=self._on_source_finished,
             )
             self.channels.append(pipeline)
-        for pipeline in self.channels:
-            pipeline.start()
+        try:
+            for pipeline in self.channels:
+                pipeline.start()
+        except Exception as exc:
+            log.error("cannot start capture: %s", exc)
+            for pipeline in self.channels:
+                try:
+                    pipeline.stop()
+                except Exception:  # pragma: no cover - already failing
+                    pass
+            self.channels.clear()
+            if self.stt is not None:
+                self.stt.stop(drain=False)
+                self.stt = None
+            self.store.log_event("start_failed", self.clock.now(), error=str(exc)[:300])
+            self.store.emit("toast", {"level": "error", "text": f"Cannot start capture: {exc}"})
+            raise
         session.status = "running"
         self.store.mark_dirty()
         self.store.log_event("start", self.clock.now())
@@ -377,10 +392,15 @@ class Engine:
         return kept
 
     async def _warm_loop(self) -> None:
+        """Housekeeping: decay the fast lane and keep `duration_s` honest for a resume."""
         try:
             while True:
                 await asyncio.sleep(10.0)
-                patch = decay_warm(self.store.session, self.clock.now())
+                now = self.clock.now()
+                if self.store.session.status == "running":
+                    self.store.session.duration_s = max(self.store.session.duration_s, now)
+                    self.store.mark_dirty()
+                patch = decay_warm(self.store.session, now)
                 if not patch.is_empty():
                     self.store.apply_patch(patch)
         except asyncio.CancelledError:  # pragma: no cover

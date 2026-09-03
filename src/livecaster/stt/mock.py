@@ -20,8 +20,10 @@ class MockEngine:
         return None
 
     def transcribe(self, audio: np.ndarray, language: str | None) -> STTResult:
-        if not self.texts:
-            return STTResult(text="", language=self.language)
-        text = self.texts[self._i % len(self.texts)]
         self._i += 1
-        return STTResult(text=text, language=self.language)
+        if not self.texts:
+            # A silent engine would make `stt.engine = "mock"` useless for checking
+            # the wiring, so say something deterministic about what it heard.
+            seconds = len(audio) / 16_000
+            return STTResult(text=f"mock utterance {self._i} ({seconds:.1f}s)", language=self.language)
+        return STTResult(text=self.texts[(self._i - 1) % len(self.texts)], language=self.language)

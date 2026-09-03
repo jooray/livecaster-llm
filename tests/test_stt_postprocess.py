@@ -48,3 +48,20 @@ def test_empty_input():
 
 def test_filler_word_inside_a_sentence_is_kept():
     assert clean("No hej, ale ten výdych funguje") == "No hej, ale ten výdych funguje"
+
+
+def test_mock_engine_describes_what_it_heard():
+    import numpy as np
+
+    from livecaster.stt.mock import MockEngine
+
+    engine = MockEngine()
+    engine.warmup()
+    first = engine.transcribe(np.zeros(32_000, dtype=np.float32), None)
+    assert first.text == "mock utterance 1 (2.0s)"
+    assert engine.transcribe(np.zeros(16_000, dtype=np.float32), None).text == "mock utterance 2 (1.0s)"
+
+    scripted = MockEngine(["prvá veta", "druhá veta"])
+    assert scripted.transcribe(np.zeros(10, dtype=np.float32), None).text == "prvá veta"
+    assert scripted.transcribe(np.zeros(10, dtype=np.float32), None).text == "druhá veta"
+    assert scripted.transcribe(np.zeros(10, dtype=np.float32), None).text == "prvá veta"

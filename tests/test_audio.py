@@ -160,3 +160,17 @@ def test_audiotee_candidates_shape():
     for candidate in audiotee_candidates():
         assert isinstance(candidate["name"], str)
         assert all(isinstance(p, int) for p in candidate["pids"])
+
+
+def test_file_source_reports_a_missing_file(tmp_path: Path):
+    source = FileSource("Host", tmp_path / "nope.wav", speed=0.0)
+    with pytest.raises(FileNotFoundError, match="audio file not found"):
+        source.start(lambda frame, t: None)
+
+
+def test_file_source_reports_an_undecodable_file(tmp_path: Path):
+    path = tmp_path / "broken.wav"
+    path.write_bytes(b"this is not audio")
+    source = FileSource("Host", path, speed=0.0)
+    with pytest.raises(RuntimeError, match="cannot decode"):
+        source.start(lambda frame, t: None)

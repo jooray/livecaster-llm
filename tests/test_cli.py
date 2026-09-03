@@ -69,6 +69,51 @@ def test_replay_end_to_end(tmp_path: Path, osnova_path: Path, fixtures: Path, fi
     assert "covered" in result.stdout
 
 
+def test_replay_accepts_a_positional_source(tmp_path: Path, osnova_path: Path, fixtures: Path):
+    """SPEC §10 writes `replay <file>`; the plan writes `--transcript`. Both work."""
+    result = runner.invoke(
+        app,
+        [
+            "replay",
+            str(fixtures / "transcript_sk.jsonl"),
+            "--outline",
+            str(osnova_path),
+            "--mock-llm",
+            "--speed",
+            "0",
+            "--set",
+            f"session.dir={tmp_path}",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert (next(iter(tmp_path.iterdir())) / "final" / "show_notes.md").is_file()
+
+
+def test_replay_positional_session_directory(tmp_path: Path, osnova_path: Path, fixtures: Path):
+    runner.invoke(
+        app,
+        [
+            "replay",
+            "--transcript",
+            str(fixtures / "transcript_sk.jsonl"),
+            "--outline",
+            str(osnova_path),
+            "--mock-llm",
+            "--speed",
+            "0",
+            "--set",
+            f"session.dir={tmp_path / 'first'}",
+        ],
+    )
+    first = next(iter((tmp_path / "first").iterdir()))
+    result = runner.invoke(
+        app,
+        ["replay", str(first), "--mock-llm", "--speed", "0", "--set", f"session.dir={tmp_path / 'second'}"],
+    )
+    assert result.exit_code == 0, result.output
+    assert (next(iter((tmp_path / "second").iterdir())) / "final" / "show_notes.md").is_file()
+
+
 def test_export_re_renders_without_the_llm(tmp_path: Path, osnova_path: Path, fixtures: Path):
     runner.invoke(
         app,
@@ -119,6 +164,27 @@ def test_export_without_a_final_analysis(tmp_path: Path, osnova_path: Path, fixt
     result = runner.invoke(app, ["export", str(session_dir)])
     assert result.exit_code != 0
     assert isinstance(result.exception, FileNotFoundError)
+
+
+def test_resume_continues_from_the_furthest_point(tmp_path: Path, osnova_path: Path, fixtures: Path):
+    """The resumed clock uses duration_s and the sync mark, not just the last utterance."""
+    from livecaster.config import Config
+    from livecaster.session.models import Segment
+    from livecaster.session.store import create_session
+    from livecaster.session.transcript import Transcript
+
+    cfg = Config()
+    cfg.audio.record = False
+    store = create_session(osnova_path, cfg, mode="live", base_dir=tmp_path)
+    store.append_segment(Segment(id="S1", channel="Host", t0=0.0, t1=24.0, text="ahoj"))
+    store.session.duration_s = 900.0
+    store.session.sync_marks = [1200.0]
+    store.snapshot(force=True)
+    store.close()
+
+    transcript = Transcript.load_jsonl(store.transcript_path)
+    offset = max(transcript.duration(), store.session.duration_s, store.session.sync_marks[-1])
+    assert offset == 1200.0
 
 
 def test_wrapup_re_runs_on_an_existing_session(tmp_path: Path, osnova_path: Path, fixtures: Path):

@@ -292,13 +292,16 @@ class FileSource:
     def _read(self) -> tuple[np.ndarray, int]:
         import soundfile as sf
 
+        if not self.path.is_file():
+            raise FileNotFoundError(f"audio file not found: {self.path}")
         try:
             data, rate = sf.read(str(self.path), dtype="float32", always_2d=True)
-        except Exception:
-            data, rate = self._read_with_ffmpeg()
+        except Exception as exc:
+            log.info("%s: soundfile cannot read %s (%s), trying ffmpeg", self.name, self.path, exc)
+            data, rate = self._read_with_ffmpeg(exc)
         return _to_mono(data, self.channel_index), int(rate)
 
-    def _read_with_ffmpeg(self) -> tuple[np.ndarray, int]:
+    def _read_with_ffmpeg(self, original: Exception) -> tuple[np.ndarray, int]:
         cmd = [
             "ffmpeg",
             "-v",
@@ -313,7 +316,15 @@ class FileSource:
             str(TARGET_RATE),
             "-",
         ]
-        res = subprocess.run(cmd, capture_output=True, check=True)
+        try:
+            res = subprocess.run(cmd, capture_output=True, check=True)
+        except FileNotFoundError as exc:
+            raise RuntimeError(
+                f"cannot decode {self.path}: {original}. Install ffmpeg to read this format."
+            ) from exc
+        except subprocess.CalledProcessError as exc:
+            detail = exc.stderr.decode("utf-8", "replace").strip()[:300]
+            raise RuntimeError(f"cannot decode {self.path}: {original}; ffmpeg said: {detail}") from exc
         return np.frombuffer(res.stdout, dtype=np.float32).reshape(-1, 1), TARGET_RATE
 
     def start(self, on_frames: OnFrames) -> None:

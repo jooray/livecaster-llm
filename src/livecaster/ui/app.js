@@ -436,7 +436,8 @@
     const u = (state.session && state.session.usage) || {};
     const cached = u.prompt_tokens ? Math.round((u.cached_tokens / u.prompt_tokens) * 100) : 0;
     setPill($("#cost-status"),
-      `$${(u.cost_usd || 0).toFixed(3)} · ${u.ticks || 0} ticks · ${cached}% cached`, "");
+      `$${(u.cost_usd || 0).toFixed(3)} · ${u.ticks || 0} ticks · ${cached}% cached`, "clickable");
+    drawSparkline(llm.latencies_ms || []);
 
     if (state.session) state.session.status = st.session_status;
     if ((st.sync_marks || []).length) {
@@ -445,6 +446,44 @@
       badge.classList.remove("hidden");
     }
     renderStatusBar();
+  }
+
+  function drawSparkline(latencies) {
+    const svg = $("#sparkline");
+    const line = $("#spark-line");
+    if (!latencies.length) { svg.classList.add("hidden"); return; }
+    svg.classList.remove("hidden");
+    const points = latencies.slice(-20);
+    const max = Math.max(...points, 1000);
+    const step = points.length > 1 ? 120 / (points.length - 1) : 120;
+    line.setAttribute("points", points.map((ms, i) => `${(i * step).toFixed(1)},${(23 - (ms / max) * 22).toFixed(1)}`).join(" "));
+    svg.classList.toggle("slow", points[points.length - 1] > 15000);
+    svg.setAttribute("title", `last tick ${(points[points.length - 1] / 1000).toFixed(1)}s, worst ${(max / 1000).toFixed(1)}s`);
+  }
+
+  function showUsage() {
+    const u = (state.session && state.session.usage) || {};
+    const rows = Object.entries(u.by_model || {}).map(([model, m]) => `
+      <tr>
+        <td>${escapeHtml(model)}</td>
+        <td class="num">${m.calls}</td>
+        <td class="num">${m.prompt_tokens.toLocaleString()}</td>
+        <td class="num">${m.prompt_tokens ? Math.round((m.cached_tokens / m.prompt_tokens) * 100) : 0}%</td>
+        <td class="num">${m.completion_tokens.toLocaleString()}</td>
+        <td class="num">$${m.cost_usd.toFixed(4)}</td>
+      </tr>`).join("");
+    $("#usage-body").innerHTML = `
+      <table>
+        <tr><th>model</th><th>calls</th><th>prompt</th><th>cached</th><th>output</th><th>cost</th></tr>
+        ${rows || '<tr><td colspan="6">No calls yet.</td></tr>'}
+        <tr><td><strong>total</strong></td><td class="num">${u.ticks || 0} ticks</td>
+            <td class="num">${(u.prompt_tokens || 0).toLocaleString()}</td>
+            <td class="num">${u.prompt_tokens ? Math.round((u.cached_tokens / u.prompt_tokens) * 100) : 0}%</td>
+            <td class="num">${(u.completion_tokens || 0).toLocaleString()}</td>
+            <td class="num"><strong>$${(u.cost_usd || 0).toFixed(4)}</strong></td></tr>
+      </table>
+      <p class="muted">${u.failures || 0} failed tick${(u.failures || 0) === 1 ? "" : "s"}.</p>`;
+    $("#usage").showModal();
   }
 
   function renderMeters(levels) {
@@ -514,7 +553,8 @@
     else if (key === "t") { showTab("transcript"); e.preventDefault(); }
     else if (key === " ") {
       const status = (state.session && state.session.status) || "idle";
-      send({ type: "control", action: status === "running" ? "pause" : "resume" });
+      const action = status === "running" ? "pause" : status === "paused" ? "resume" : "start";
+      send({ type: "control", action });
       e.preventDefault();
     } else if (key === "?") { $("#help").showModal(); e.preventDefault(); }
     else if (["1", "2", "3"].includes(key)) {
@@ -543,6 +583,7 @@
   });
 
   $("#btn-help").addEventListener("click", () => $("#help").showModal());
+  $("#cost-status").addEventListener("click", showUsage);
   $("#btn-theme").addEventListener("click", () => {
     const cur = document.documentElement.dataset.theme === "light" ? "dark" : "light";
     document.documentElement.dataset.theme = cur;

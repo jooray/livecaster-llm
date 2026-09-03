@@ -19,7 +19,10 @@
   <div class="tb-group">
     <span class="pill" id="stt-status">STT —</span>
     <span class="pill" id="llm-status">LLM —</span>
-    <span class="pill" id="cost-status">$0.00 · 0 ticks</span>
+    <span class="pill clickable" id="cost-status" title="Click for the breakdown">$0.00 · 0 ticks</span>
+    <svg id="sparkline" class="sparkline" viewBox="0 0 120 24" preserveAspectRatio="none" aria-hidden="true">
+      <polyline id="spark-line" fill="none" stroke="currentColor" stroke-width="1.5" points=""></polyline>
+    </svg>
   </div>
   <div class="tb-group buttons">
     <button id="btn-start" data-action="start">Start</button>
@@ -78,6 +81,12 @@
 </main>
 
 <div id="toasts"></div>
+
+<dialog id="usage">
+  <h2>Usage</h2>
+  <div id="usage-body"></div>
+  <form method="dialog"><button>Close</button></form>
+</dialog>
 
 <dialog id="help">
   <h2>Keyboard</h2>

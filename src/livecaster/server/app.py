@@ -129,6 +129,10 @@ def create_app(engine: Engine, ui_dir: Path | None = None) -> FastAPI:
             await handle_client_message(engine, data, manager)
         except ValueError as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
+        except Exception as exc:
+            log.exception("control failed: %s", data)
+            manager.broadcast(ToastMessage(level="error", text=f"{type(exc).__name__}: {exc}"))
+            return JSONResponse({"error": f"{type(exc).__name__}: {exc}"}, status_code=500)
         return JSONResponse({"ok": True})
 
     @app.websocket("/ws")
