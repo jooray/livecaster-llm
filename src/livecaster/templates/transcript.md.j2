@@ -1,0 +1,8 @@
+# Transcript
+
+{% for b in blocks %}
+**[{{ b.t }}]{% if b.speaker %} {{ b.speaker }}{% endif %}**
+
+{{ b.text }}
+
+{% endfor %}

@@ -1,0 +1,96 @@
+# {{ title }}
+
+_{{ duration }}{% if sync_offset %} · timestamps relative to sync mark at {{ sync_offset | hms }}{% endif %}_
+
+## {{ label('summary') }}
+
+{% for line in analysis.summary %}
+{{ line }}
+{% endfor %}
+
+## {{ label('chapters') }}
+
+{% for c in chapters %}
+- `{{ c.start }}` **{{ c.title }}**{% if c.nodes %} — {{ c.nodes | join('; ') }}{% endif +%}
+{% endfor %}
+
+## {{ label('covered') }}
+
+{% for c in covered %}
+- {{ c.text }}{% if c.note %} — {{ c.note }}{% endif +%}
+{% endfor %}
+
+## {{ label('uncovered') }}
+
+{% if uncovered %}
+{% for c in uncovered %}
+- {{ c.text }}{% if c.note %} — {{ c.note }}{% endif +%}
+{% endfor %}
+{% else %}
+—
+{% endif %}
+
+## {{ label('titles') }}
+
+{% for t in analysis.titles %}
+{{ loop.index }}. {{ t.text }} _({{ t.style }})_
+{% endfor %}
+
+## {{ label('description_short') }}
+
+{{ analysis.description_short }}
+
+## {{ label('description_long') }}
+
+{{ analysis.description_long }}
+
+## {{ label('social') }}
+
+{% for s in analysis.social %}
+**{{ s.platform }}**
+
+{{ s.text }}
+
+{% endfor %}
+
+## {{ label('quotes') }}
+
+{% for q in quotes %}
+- `{{ q.t }}`{% if q.speaker %} **{{ q.speaker }}**:{% endif %} „{{ q.text }}“
+{% endfor %}
+
+## {{ label('mentions') }}
+
+{% for g in mention_groups %}
+### {{ g.icon }} {{ g.kind }}
+
+{% for m in g['items'] %}
+- **{{ m.text }}**{% if m.context %} — {{ m.context }}{% endif +%}
+{% if m.url %}
+  🔗 {{ m.url }}
+{% else %}
+  TODO link: `{{ m.search_query }}`
+{% endif %}
+{% endfor %}
+
+{% endfor %}
+
+## {{ label('promises') }}
+
+{% if promises %}
+{% for p in promises %}
+- `{{ p.t }}` {{ p.text }}
+{% endfor %}
+{% else %}
+—
+{% endif %}
+
+## {{ label('new_topics') }}
+
+{% if analysis.new_topics %}
+{% for t in analysis.new_topics %}
+- **{{ t.title }}**{% if t.summary %} — {{ t.summary }}{% endif +%}
+{% endfor %}
+{% else %}
+—
+{% endif %}
