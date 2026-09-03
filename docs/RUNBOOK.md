@@ -5,8 +5,17 @@ Everything you need on show day, in the order you need it. Nothing here requires
 ## The day before
 
 1. `uv sync --extra mac` (or `--extra linux`) — picks up any dependency changes.
-2. `uv run livecaster check` — this downloads the STT model on a fresh machine, which takes a
-   few minutes. Do not leave it for five minutes before the recording.
+2. `uv run livecaster check` — on a fresh machine this downloads about 2.4 GB of Parakeet
+   weights. Do not leave it for five minutes before the recording.
+
+   On a flaky connection the Hugging Face downloader starts over instead of resuming, leaving
+   several `.incomplete` files in `~/.cache/huggingface/hub/`. Pull the model separately first,
+   which retries properly, and delete the leftovers:
+
+   ```bash
+   uv run hf download mlx-community/parakeet-tdt-0.6b-v3
+   find ~/.cache/huggingface/hub -name '*.incomplete' -delete   # only after it succeeds
+   ```
 3. If the guest is remote: confirm AudioTee is built (`./helpers/audiotee/build.sh`) **or**
    BlackHole is installed and your Multi-Output Device still exists.
 4. Write the outline. Any Markdown works: headings, bullets, nested bullets, `Otázka:` lines,

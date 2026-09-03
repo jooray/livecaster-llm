@@ -45,6 +45,10 @@ uv run livecaster check
 
 `check` verifies the Venice key and models, downloads and self-tests the STT model, lists audio
 devices, and (on macOS) reports AudioTee availability and the permissions you need to grant.
+The first run downloads about 2.4 GB of Parakeet weights, so do not leave it until five minutes
+before a recording; `--no-stt` skips that part. On a flaky connection, pull the model separately
+with `uv run hf download mlx-community/parakeet-tdt-0.6b-v3`, which retries properly instead of
+restarting.
 
 ## First run
 
@@ -58,6 +62,12 @@ Press **Start** in the UI when you are ready; press **Finish** when you are done
 
 Outputs land in `sessions/<date>_<slug>/final/`:
 `show_notes.md`, `outline_annotated.md`, `transcript.md`, `transcript.srt`, `final_analysis.json`.
+
+The Whisper fallback is a separate install on macOS, because `mlx-whisper` pulls in PyTorch:
+
+```bash
+uv sync --extra mac --extra mac-whisper   # only if you need a language Parakeet does not cover
+```
 
 ## Developing without a microphone
 
