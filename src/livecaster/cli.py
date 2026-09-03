@@ -181,17 +181,27 @@ def devices() -> None:
     table.add_column("rate", justify="right")
     table.add_column("api")
     table.add_column("")
+    headsets = []
     for d in list_devices():
+        if d.is_headset_mode:
+            headsets.append(d.name)
         table.add_row(
             str(d.index),
             d.name,
             str(d.max_input_channels),
             f"{d.default_samplerate:.0f}",
             d.hostapi,
-            "default" if d.is_default else "",
+            "headset mode" if d.is_headset_mode else ("default" if d.is_default else ""),
         )
     console.print(table)
     console.print('Use them as [cyan]source = "device:<name or index>"[/cyan].')
+    if headsets:
+        console.print(
+            f"[yellow]{', '.join(headsets)}[/yellow] runs in Bluetooth headset mode: opening the "
+            "microphone drops the whole link to 16 kHz mono, so the music side sounds like a phone "
+            "call and the speech is band-limited. Fine to try things out, wrong for a real episode "
+            "— use a wired or USB microphone and keep the headphones for listening only."
+        )
 
     if platform.system() == "Darwin":
         candidates = audiotee_candidates()

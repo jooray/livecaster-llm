@@ -609,6 +609,9 @@ mac = [
 mac-whisper = [
     { name = "mlx-whisper" },
 ]
+whisper = [
+    { name = "faster-whisper" },
+]
 
 [package.dev-dependencies]
 dev = [
@@ -624,6 +627,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.115" },
     { name = "faster-whisper", marker = "extra == 'cuda'", specifier = ">=1.0" },
     { name = "faster-whisper", marker = "extra == 'linux'", specifier = ">=1.0" },
+    { name = "faster-whisper", marker = "extra == 'whisper'", specifier = ">=1.0" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "jinja2", specifier = ">=3.1" },
     { name = "mlx-whisper", marker = "extra == 'mac-whisper'", specifier = ">=0.4" },
@@ -645,7 +649,7 @@ requires-dist = [
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.30" },
     { name = "watchfiles", specifier = ">=0.22" },
 ]
-provides-extras = ["mac", "anthropic", "mac-whisper", "linux", "cuda"]
+provides-extras = ["mac", "anthropic", "mac-whisper", "whisper", "linux", "cuda"]
 
 [package.metadata.requires-dev]
 dev = [

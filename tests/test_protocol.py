@@ -83,6 +83,7 @@ def test_hot_info_survives_serialization():
     payload = json.loads(PatchMessage.of(patch).model_dump_json())
     assert payload["nodes"]["T29"]["hot"] == {
         "score": 0.9,
+        "label": "",
         "reason": "r",
         "segue": "s",
         "since_t": 0.0,

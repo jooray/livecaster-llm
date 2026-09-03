@@ -46,6 +46,7 @@ class TickTouched(BaseModel):
 class TickHot(BaseModel):
     id: str
     score: float = 0.0
+    label: str = ""
     reason: str = ""
     segue: str = ""
 
@@ -106,7 +107,7 @@ TICK_SCHEMA: dict[str, Any] = _obj(
         "current": _obj(
             {
                 "node_id": {"type": ["string", "null"]},
-                "summary": {"type": "string", "maxLength": 200},
+                "summary": {"type": "string", "maxLength": 110},
             }
         ),
         "covered": _arr(
@@ -126,8 +127,9 @@ TICK_SCHEMA: dict[str, Any] = _obj(
                 {
                     "id": {"type": "string"},
                     "score": {"type": "number", "minimum": 0, "maximum": 1},
-                    "reason": {"type": "string", "maxLength": 200},
-                    "segue": {"type": "string", "maxLength": 240},
+                    "label": {"type": "string", "maxLength": 44},
+                    "reason": {"type": "string", "maxLength": 90},
+                    "segue": {"type": "string", "maxLength": 140},
                 }
             ),
             5,
@@ -135,9 +137,9 @@ TICK_SCHEMA: dict[str, Any] = _obj(
         "questions": _arr(
             _obj(
                 {
-                    "text": {"type": "string", "maxLength": 240},
+                    "text": {"type": "string", "maxLength": 140},
                     "node_id": {"type": ["string", "null"]},
-                    "why": {"type": "string", "maxLength": 160},
+                    "why": {"type": "string", "maxLength": 80},
                 }
             ),
             5,

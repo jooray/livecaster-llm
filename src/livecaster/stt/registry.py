@@ -12,13 +12,14 @@ from typing import Any
 from livecaster.audio.segmenter import Utterance
 from livecaster.log import get_logger
 from livecaster.stt.base import EngineUnavailable, STTEngine, STTResult
+from livecaster.stt.postprocess import wrong_script
 
 log = get_logger(__name__)
 
 MAC_ARM = platform.system() == "Darwin" and platform.machine() == "arm64"
 
 
-def _build(engine_key: str, model: str) -> STTEngine:
+def _build(engine_key: str, model: str, cpu_threads: int = 0) -> STTEngine:
     if engine_key == "parakeet-mlx":
         from livecaster.stt.parakeet_mlx import ParakeetMLXEngine
 
@@ -34,7 +35,7 @@ def _build(engine_key: str, model: str) -> STTEngine:
     if engine_key == "faster-whisper":
         from livecaster.stt.faster_whisper import FasterWhisperEngine
 
-        return FasterWhisperEngine(model)
+        return FasterWhisperEngine(model, cpu_threads=cpu_threads)
     if engine_key == "mock":
         from livecaster.stt.mock import MockEngine
 
@@ -50,17 +51,30 @@ def fallback_engine_key() -> str:
     return "whisper-mlx" if MAC_ARM else "faster-whisper"
 
 
-def select_engine(engine: str = "auto", model: str = "", language: str = "auto") -> STTEngine:
+def select_engine(
+    engine: str = "auto",
+    model: str = "",
+    language: str = "auto",
+    cpu_threads: int = 0,
+) -> STTEngine:
     """`auto` picks the platform default, then falls back when the language is out of set."""
-    if engine and engine != "auto":
-        return _build(engine, model)
-    key = default_engine_key()
-    built = _build(key, model)
     lang = (language or "auto").lower()
-    if lang != "auto" and built.languages is not None and lang not in built.languages:
-        alt = fallback_engine_key()
-        log.info("%s does not cover %r, falling back to %s", key, lang, alt)
-        return _build(alt, model)
+    if engine and engine != "auto":
+        built = _build(engine, model, cpu_threads)
+    else:
+        key = default_engine_key()
+        built = _build(key, model, cpu_threads)
+        if lang != "auto" and built.languages is not None and lang not in built.languages:
+            alt = fallback_engine_key()
+            log.info("%s does not cover %r, falling back to %s", key, lang, alt)
+            built = _build(alt, model, cpu_threads)
+    if lang != "auto" and not built.can_force_language:
+        log.warning(
+            "%s detects the language itself: stt.language=%r is a hint for the notes, not a lock. "
+            "Use stt.engine=faster-whisper for a real one.",
+            built.name,
+            lang,
+        )
     return built
 
 
@@ -85,6 +99,7 @@ class STTWorker:
         self._stop = threading.Event()
         self.last_latency_ms: int | None = None
         self.processed = 0
+        self.dropped_language = 0
         self.errors = 0
         self.restarts = 0
         self.last_error: str | None = None
@@ -93,12 +108,24 @@ class STTWorker:
     def depth(self) -> int:
         return self.queue.qsize()
 
+    @property
+    def forced(self) -> bool:
+        """A locked language the engine can actually honour."""
+        return bool(self.language) and self.engine.can_force_language
+
+    def set_language(self, language: str | None) -> None:
+        """Change the language mid-session. Read per utterance, so no restart."""
+        self.language = None if not language or language == "auto" else language.lower()
+
     def status(self) -> dict[str, Any]:
         return {
             "engine": self.engine.name,
             "queue": self.depth,
             "last_latency_ms": self.last_latency_ms,
             "processed": self.processed,
+            "language": self.language or "auto",
+            "can_force_language": self.engine.can_force_language,
+            "dropped_language": self.dropped_language,
             "errors": self.errors,
             "restarts": self.restarts,
             "error": self.last_error,
@@ -168,6 +195,12 @@ class STTWorker:
                 continue
             self.last_latency_ms = int((time.monotonic() - started) * 1000)
             self.processed += 1
+            # An engine that detects the language for itself sometimes answers in
+            # the wrong alphabet entirely. That is never a real transcript.
+            if self.language and wrong_script(result.text, self.language):
+                self.dropped_language += 1
+                log.info("dropped a %s utterance: %r", self.language, result.text[:60])
+                continue
             if result.text.strip():
                 try:
                     self.on_result(item, result)

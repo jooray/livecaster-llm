@@ -12,3 +12,4 @@ helpers/audiotee/src/
 !tests/fixtures/*.wav
 .DS_Store
 uv.lock.bak
+livecaster.toml

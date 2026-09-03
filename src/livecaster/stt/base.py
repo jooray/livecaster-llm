@@ -20,6 +20,9 @@ class STTResult(BaseModel):
 class STTEngine(Protocol):  # pragma: no cover - structural typing only
     name: str
     languages: set[str] | None
+    #: Whether ``transcribe(..., language=...)`` actually constrains the output.
+    #: Parakeet v3 detects the language itself and ignores the argument (D20).
+    can_force_language: bool
 
     def warmup(self) -> None: ...
     def transcribe(self, audio: np.ndarray, language: str | None) -> STTResult: ...

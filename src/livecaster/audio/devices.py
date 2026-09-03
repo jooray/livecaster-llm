@@ -17,6 +17,19 @@ class DeviceInfo:
     default_samplerate: float
     is_default: bool = False
     hostapi: str = ""
+    max_output_channels: int = 0
+
+    @property
+    def is_headset_mode(self) -> bool:
+        """A Bluetooth headset whose microphone is open, so macOS is in HFP.
+
+        In that mode the *playback* side collapses to the same narrow 16 kHz mono
+        link — which is why the headphones suddenly sound like a phone call. It
+        costs nothing for speech recognition and everything for what you hear.
+        """
+        return (
+            self.max_input_channels > 0 and self.max_output_channels > 0 and self.default_samplerate <= 24_000
+        )
 
 
 def list_devices() -> list[DeviceInfo]:
@@ -45,6 +58,7 @@ def list_devices() -> list[DeviceInfo]:
                 default_samplerate=float(d["default_samplerate"]),
                 is_default=(i == default_in),
                 hostapi=api,
+                max_output_channels=int(d["max_output_channels"]),
             )
         )
     return out

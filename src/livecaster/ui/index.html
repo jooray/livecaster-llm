@@ -17,6 +17,7 @@
   </div>
   <div class="tb-group" id="meters"></div>
   <div class="tb-group">
+    <span class="pill clickable" id="lang-status" title="Transcription language — click to change">🌐 auto</span>
     <span class="pill" id="stt-status">STT —</span>
     <span class="pill" id="llm-status">LLM —</span>
     <span class="pill clickable" id="cost-status" title="Click for the breakdown">$0.00 · 0 ticks</span>
@@ -32,6 +33,7 @@
     <button data-action="sync_mark" title="m">Sync mark</button>
     <button data-action="tick_now">Tick now</button>
     <button data-action="reload_outline">Reload outline</button>
+    <button id="btn-density" title="Compact / full text (d)">▥</button>
     <button id="btn-theme" title="Toggle theme">◐</button>
     <button id="btn-help" title="?">?</button>
   </div>
@@ -51,6 +53,7 @@
       <button class="tab" data-tab="mentions">Mentions</button>
       <button class="tab" data-tab="transcript">Transcript</button>
       <button class="tab" data-tab="new">New topics</button>
+      <button class="tab hidden" data-tab="result" id="tab-result">Result</button>
     </nav>
 
     <div class="tabpanels">
@@ -72,6 +75,11 @@
         <h2>Transcript</h2>
         <div id="transcript" class="transcript"></div>
       </div>
+      <div class="panel" data-panel="result">
+        <div id="result-files" class="result-files"></div>
+        <div id="result-body" class="result-body"></div>
+      </div>
+
       <div class="panel" data-panel="new">
         <h2>New topics</h2>
         <ul id="newtopics-list" class="m-list"></ul>
@@ -81,6 +89,13 @@
 </main>
 
 <div id="toasts"></div>
+
+<dialog id="lang">
+  <h3>Transcription language</h3>
+  <p id="lang-note" class="muted"></p>
+  <div id="lang-choices" class="lang-choices"></div>
+  <form method="dialog"><button>Close</button></form>
+</dialog>
 
 <dialog id="usage">
   <h2>Usage</h2>
@@ -98,6 +113,7 @@
     <tr><td><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></td><td>select hot item by rank</td></tr>
     <tr><td><kbd>m</kbd></td><td>sync mark</td></tr>
     <tr><td><kbd>t</kbd></td><td>toggle transcript panel</td></tr>
+    <tr><td><kbd>d</kbd></td><td>compact / full text</td></tr>
     <tr><td><kbd>space</kbd></td><td>pause / resume</td></tr>
     <tr><td><kbd>?</kbd></td><td>this help</td></tr>
   </table>

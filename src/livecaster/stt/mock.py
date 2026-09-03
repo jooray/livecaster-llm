@@ -10,6 +10,7 @@ from livecaster.stt.base import STTResult
 class MockEngine:
     name = "mock"
     languages = None
+    can_force_language = True
 
     def __init__(self, texts: list[str] | None = None, language: str | None = "sk") -> None:
         self.texts = list(texts or [])

@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from starlette.staticfiles import StaticFiles
 
@@ -123,6 +123,34 @@ def create_app(engine: Engine, ui_dir: Path | None = None) -> FastAPI:
     async def api_health() -> str:
         return "ok"
 
+    @app.get("/api/final")
+    async def api_final_index() -> JSONResponse:
+        """What the wrap-up wrote, so the UI can show it without touching the disk."""
+        return JSONResponse(
+            {
+                "dir": str(engine.store.dir.resolve()),
+                "paths": engine.store.session.final_paths,
+                "error": engine.finish_error,
+            }
+        )
+
+    @app.get("/api/final/{name}", response_class=PlainTextResponse)
+    async def api_final_file(name: str) -> PlainTextResponse:
+        target = engine.store.session.final_paths.get(name)
+        if target is None:
+            raise HTTPException(status_code=404, detail=f"no artifact named {name!r}")
+        path = Path(target)
+        # Only ever serve what the wrap-up itself recorded, and only from this session.
+        if not path.is_absolute():
+            path = (engine.store.dir.parent.parent / path).resolve()
+        if not path.is_file() or engine.store.dir.resolve() not in path.resolve().parents:
+            raise HTTPException(status_code=404, detail=f"{name} is not in this session")
+        return PlainTextResponse(
+            path.read_text(encoding="utf-8"),
+            headers={"Cache-Control": "no-store"},
+            media_type="text/plain; charset=utf-8",
+        )
+
     @app.post("/api/control")
     async def api_control(request: Request) -> JSONResponse:
         data = await request.json()
@@ -190,6 +218,8 @@ async def handle_client_message(engine: Engine, data: dict[str, Any], manager: C
         engine.sync_mark()
     elif kind == "select":
         pass  # client-side only; accepted so the UI can keep one message shape
+    elif kind == "set_language":
+        engine.set_language(message.language)  # type: ignore[union-attr]
     elif kind == "control":
         action = message.action  # type: ignore[union-attr]
         if action == "start":

@@ -35,6 +35,9 @@ class STTConfig(BaseModel):
     engine: str = "auto"  # auto | parakeet-mlx | onnx-asr | whisper-mlx | faster-whisper | mock
     model: str = ""
     language: str = "auto"
+    # Only the Whisper engines can be told what language they are hearing; Parakeet
+    # detects it per utterance and sometimes gets it wrong (DECISIONS D20).
+    cpu_threads: int = 0  # faster-whisper only; 0 = the CTranslate2 default
     vad_threshold: float = 0.5
     silence_ms: int = 600
     min_speech_ms: int = 300

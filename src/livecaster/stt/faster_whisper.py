@@ -17,11 +17,19 @@ DEFAULT_MODEL = "large-v3-turbo"
 class FasterWhisperEngine:
     name = "faster-whisper"
     languages = None  # open set
+    can_force_language = True
 
-    def __init__(self, model: str = "", device: str = "auto", compute_type: str = "default") -> None:
+    def __init__(
+        self,
+        model: str = "",
+        device: str = "auto",
+        compute_type: str = "default",
+        cpu_threads: int = 0,
+    ) -> None:
         self.model_id = model or DEFAULT_MODEL
         self.device = device
         self.compute_type = compute_type
+        self.cpu_threads = cpu_threads
         self._model = None
 
     def warmup(self) -> None:
@@ -34,7 +42,12 @@ class FasterWhisperEngine:
                 "faster-whisper is not installed. Run `uv sync --extra linux` (or --extra cuda)."
             ) from exc
         log.info("loading %s", self.model_id)
-        self._model = WhisperModel(self.model_id, device=self.device, compute_type=self.compute_type)
+        self._model = WhisperModel(
+            self.model_id,
+            device=self.device,
+            compute_type=self.compute_type,
+            cpu_threads=self.cpu_threads,
+        )
         self.transcribe(np.zeros(16_000, dtype=np.float32), None)
 
     def transcribe(self, audio: np.ndarray, language: str | None) -> STTResult:

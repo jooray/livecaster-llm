@@ -31,6 +31,7 @@ class Evidence(BaseModel):
 
 class HotInfo(BaseModel):
     score: float = 0.0
+    label: str = ""
     reason: str = ""
     segue: str = ""
     since_t: float = 0.0
@@ -85,6 +86,7 @@ class CurrentTopic(BaseModel):
 class HotInfoRef(BaseModel):
     node_id: str
     score: float
+    label: str = ""
     reason: str = ""
     segue: str = ""
     rank: int | None = None

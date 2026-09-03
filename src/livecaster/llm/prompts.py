@@ -54,9 +54,14 @@ give its timestamp.
 or skipped, and never repeat a mention that MENTIONS SO FAR already lists. Most ticks should \
 return one or two entries per array, often none.
 4. "hot" = topics that became relevant right now because of something said in the NEW part of the \
-transcript. Give a reason and a one-sentence segue the host could say. Skip topics already covered.
+transcript. Skip topics already covered. For each one give:
+   - "label": how the host should recognise it at a glance. AT MOST 5 WORDS, no punctuation, \
+     not a sentence. Name the thing, do not describe it. Good: "Wim Hof vs. her work". \
+     Bad: "The difference between her work and the Wim Hof method, in terms of intensity".
+   - "reason": at most 12 words, why now.
+   - "segue": one short sentence the host could say out loud.
 5. Suggest at most 5 follow-up questions for the current moment. Short, concrete, in the voice of \
-a curious host.
+a curious host. One sentence each, no preamble.
 6. Extract mentions worth linking in the show notes: people, books, articles, tools, products, \
 places, events, and promises like "we will put the link in the description". Set "url" only if you \
 are certain it is a real URL; otherwise null and a search query.
@@ -68,7 +73,10 @@ the content makes it obvious, and never state a speaker as fact.
 9. All human-facing text (summary, reasons, segues, questions, notes) must be in the conversation \
 language: {language_name} ({language_code}). Never switch to English unless the conversation is in \
 English.
-10. Output only JSON matching the schema.
+10. The host reads this mid-sentence, live, while talking. Every string is a glance, not a \
+paragraph: "current.summary" at most 12 words, and no field ever repeats what the outline text \
+already says.
+11. Output only JSON matching the schema.
 
 OUTLINE (id, structure, text):
 {outline_block}"""

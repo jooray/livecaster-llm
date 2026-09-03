@@ -162,6 +162,7 @@ def apply_tick(
             continue
         new_hot[entry.id] = HotInfo(
             score=max(0.0, min(1.0, entry.score)),
+            label=entry.label,
             reason=entry.reason,
             segue=entry.segue,
             since_t=st.hot.since_t if st.hot else now,
@@ -178,12 +179,22 @@ def apply_tick(
             touch(node_id)
         else:
             new_hot[node_id] = HotInfo(
-                score=decayed, reason=st.hot.reason, segue=st.hot.segue, since_t=st.hot.since_t
+                score=decayed,
+                label=st.hot.label,
+                reason=st.hot.reason,
+                segue=st.hot.segue,
+                since_t=st.hot.since_t,
             )
     for node_id, st in session.nodes.items():
         if st.pinned and st.status not in ("covered", "skipped"):
             prev = new_hot.get(node_id) or st.hot or HotInfo(since_t=now)
-            new_hot[node_id] = HotInfo(score=1.0, reason=prev.reason, segue=prev.segue, since_t=prev.since_t)
+            new_hot[node_id] = HotInfo(
+                score=1.0,
+                label=prev.label,
+                reason=prev.reason,
+                segue=prev.segue,
+                since_t=prev.since_t,
+            )
 
     ranked = sorted(new_hot.items(), key=lambda kv: -kv[1].score)[:MAX_HOT]
     kept = {node_id for node_id, _ in ranked}
@@ -197,7 +208,14 @@ def apply_tick(
         st = touch(node_id)
         st.hot = hot
         next_refs.append(
-            HotInfoRef(node_id=node_id, score=hot.score, reason=hot.reason, segue=hot.segue, rank=rank)
+            HotInfoRef(
+                node_id=node_id,
+                score=hot.score,
+                label=hot.label,
+                reason=hot.reason,
+                segue=hot.segue,
+                rank=rank,
+            )
         )
 
     # Rule 6 — questions
@@ -336,7 +354,14 @@ def _rerank_hot(session: Session) -> None:
         assert info is not None
         info.rank = rank
         refs.append(
-            HotInfoRef(node_id=node_id, score=info.score, reason=info.reason, segue=info.segue, rank=rank)
+            HotInfoRef(
+                node_id=node_id,
+                score=info.score,
+                label=info.label,
+                reason=info.reason,
+                segue=info.segue,
+                rank=rank,
+            )
         )
     for _node_id, info in hot[MAX_HOT:]:
         if info is not None:

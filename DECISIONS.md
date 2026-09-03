@@ -232,3 +232,61 @@ The Hugging Face downloader restarted rather than resumed four times on this con
 2 GB of orphaned `.incomplete` files. The model was finally installed by resuming with
 `curl -C -` and verifying the blob's sha256 against its cache filename before moving it into
 place. The runbook documents `hf download` as the pre-flight step.
+
+## D20 — Parakeet v3 cannot be forced to a language; Whisper can, but not live
+
+The first real microphone session (12 min, single Bluetooth headset mic) drifted language
+per utterance: 5 of 23 utterances came back in Polish or Russian orthography — "Teamow metoda
+jest taka troszkę naroczniejsza" for *Wim Hof metóda je taká trošku náročnejšia*, and one
+outright Cyrillic line, "Ну, мой брат за мною". The transcript is reproducible from
+`sessions/…/audio/room.wav`, so this was measured, not inferred.
+
+**Parakeet v3 has language tokens but no way to reach them.** Its vocabulary contains the full
+Canary-style multitask set — `<|sk|>`, `<|startoftranscript|>`, `<|pnc|>`, `<|timestamp|>`, even
+`<|spkchange|>` and `<|spk0..15|>`. Priming the TDT prediction network with those tokens (via
+`decode(..., last_token=, hidden_state=)`) does change the output, but does not change the
+language: every variant of `<|sk|>`, `<|cs|>`, `<|pl|>`, `<|en|>` still decoded the same audio as
+Polish. `parakeet-mlx` 0.5.2 has no language argument anywhere in the package. So the engine
+attribute is `can_force_language = False`, and that is a property of the model, not a TODO.
+
+**faster-whisper honours `language="sk"` and fixes the text — at 15 s per utterance.** Same 23
+utterances, `large-v3-turbo` int8 on CPU: every line stayed in Slovak and the words got better
+("Ako to celé urobiť?" not "Ako to celę robić?", "S Zuzkou" not "S Zuzku"). But Whisper pads
+every input to a 30 s window, so cost is per *call*, not per second of speech: **RTF 3.68**,
+~15 s regardless of utterance length. Unusable while the show is running; fine afterwards.
+
+So there are three levers, and they are all exposed rather than chosen for the host:
+
+1. `stt.language` is honoured by whichever engine can honour it, and is a hint everywhere else.
+2. The language can be locked (or released) live from the UI, mid-session — the STT worker reads
+   it once per utterance, so it takes effect on the next thing anyone says.
+3. When a language is locked and the engine cannot force it, whole utterances in an alphabet that
+   language never uses are dropped (`postprocess.wrong_script`). It catches the Cyrillic case
+   exactly and never fires on Latin-script drift, which is the honest limit of a cheap guard.
+
+`faster-whisper` moved into its own `whisper` extra: it is CTranslate2, not PyTorch, so unlike
+`mlx-whisper` it installs on macOS without violating the no-torch ground rule (D7).
+
+## D21 — Start after Finish captured everything twice
+
+The same session recorded every utterance twice from 10:31 onward, with two WAV files
+(`room.wav`, `room.2.wav`) and duplicate transcript segments 0.1 s apart. Cause: `Finish` stops
+the channel pipelines but left them in `engine.channels`, and `start_capture` appended a fresh
+set and then called `start()` on the whole list — the old, stopped pipelines included. The `space`
+key sends `start` from the `finished` state, so it took one keystroke.
+
+Capture teardown is now one method that both `finish`-then-restart and `shutdown` go through, and
+a second take is a supported thing rather than an accident: the button says **Record again**, the
+clock and outline state continue, and the wrap-up re-runs over everything at the end.
+
+## D22 — The live surface shows labels, not paragraphs
+
+The first real session made the failure obvious: the NEXT panel rendered the full outline line,
+then the model's reason, then its suggested segue — three paragraphs per item, three items deep.
+Nobody reads that while talking.
+
+The fix is on both sides. The model is now asked for a `label` of at most 5 words ("Wim Hof vs.
+her work"), and the schema's `maxLength`s came down hard — `reason` 200 → 90, `segue` 240 → 140,
+`current.summary` 200 → 110. The UI shows rank + label only; the reason and the segue appear when
+an item is clicked, and `d` flips the whole surface to full text at once. Outline lines clamp to
+two rendered lines, four when hot or selected. The map marks; the words are one click away.

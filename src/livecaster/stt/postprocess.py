@@ -80,3 +80,37 @@ def clean(text: str) -> str:
     if is_hallucination(text):
         return ""
     return text
+
+
+# Scripts, for the language guard. Parakeet v3 cannot be told which language it is
+# hearing (DECISIONS D20), and when the audio is poor it answers in the wrong one.
+# Whole alphabets it never should have reached are cheap to catch and always wrong.
+_SCRIPTS = {
+    "cyrillic": re.compile(r"[Ѐ-ӿ]"),
+    "greek": re.compile(r"[Ͱ-Ͽ]"),
+    "latin": re.compile(r"[A-Za-zÀ-ɏ]"),
+}
+
+#: Which script each language Parakeet knows is actually written in.
+LANGUAGE_SCRIPT = {
+    "bg": "cyrillic", "ru": "cyrillic", "uk": "cyrillic", "el": "greek",
+}  # fmt: skip
+
+
+def script_of(text: str) -> str | None:
+    """The script most of the letters in ``text`` belong to, or None if it is a wash."""
+    counts = {name: len(rx.findall(text)) for name, rx in _SCRIPTS.items()}
+    total = sum(counts.values())
+    if total < 3:
+        return None
+    name, best = max(counts.items(), key=lambda kv: kv[1])
+    return name if best / total > 0.6 else None
+
+
+def wrong_script(text: str, language: str | None) -> bool:
+    """True when ``text`` is written in an alphabet ``language`` never uses."""
+    if not language or language == "auto":
+        return False
+    expected = LANGUAGE_SCRIPT.get(language.lower(), "latin")
+    found = script_of(text)
+    return found is not None and found != expected

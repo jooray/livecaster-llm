@@ -32,6 +32,9 @@ anthropic = ["anthropic>=1.0"]
 # Opt-in: mlx-whisper depends on PyTorch, which the macOS install deliberately avoids.
 # Install it only when you need the Whisper fallback (a language outside Parakeet's 25).
 mac-whisper = ["mlx-whisper>=0.4"]
+# faster-whisper is CTranslate2, not PyTorch, so it installs everywhere — this is
+# the engine to reach for when the language must be forced (Parakeet cannot be).
+whisper = ["faster-whisper>=1.0"]
 linux = ["onnx-asr[cpu]>=0.6", "faster-whisper>=1.0"]
 cuda = ["onnx-asr[gpu]>=0.6", "faster-whisper>=1.0"]
 

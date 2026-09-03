@@ -17,6 +17,7 @@ DEFAULT_MODEL = "nemo-parakeet-tdt-0.6b-v3"
 class OnnxASREngine:
     name = "onnx-asr"
     languages = LANGUAGES
+    can_force_language = False
 
     def __init__(self, model: str = "") -> None:
         self.model_id = model or DEFAULT_MODEL

@@ -221,7 +221,12 @@ class Engine:
             await self.start_capture()
 
     def _build_stt(self) -> STTWorker:
-        engine = select_engine(self.config.stt.engine, self.config.stt.model, self.config.stt.language)
+        engine = select_engine(
+            self.config.stt.engine,
+            self.config.stt.model,
+            self.config.stt.language,
+            self.config.stt.cpu_threads,
+        )
         return STTWorker(
             engine,
             self._on_stt_result,
@@ -236,6 +241,16 @@ class Engine:
         if session.status == "paused":
             await self.resume()
             return
+        # Start after a Finish is a second take of the same episode, not a second
+        # engine: tear the old pipelines down first or every utterance is captured
+        # — and transcribed — twice.
+        await self._teardown_capture()
+        if session.status == "finished":
+            self.finish_result = None
+            self.finish_error = None
+            self._finished = asyncio.Event()
+            self.reasoner.start()
+            self.store.emit("toast", {"level": "info", "text": "Recording again — the wrap-up will re-run."})
         self.stt = self._build_stt()
         self.stt.start()
         audio_dir = self.store.dir / "audio"
@@ -344,6 +359,7 @@ class Engine:
                 "done",
                 {
                     "paths": paths,
+                    "dir": str(self.store.dir.resolve()),
                     "duration_s": session.duration_s,
                     "cost_usd": session.usage.cost_usd,
                     "ticks": session.usage.ticks,
@@ -353,11 +369,20 @@ class Engine:
             self._finished.set()
             return paths
 
-    async def shutdown(self) -> None:
+    async def _teardown_capture(self, *, drain: bool = False) -> None:
+        """Stop and forget every pipeline. Safe to call when nothing is running."""
         for pipeline in self.channels:
-            await asyncio.to_thread(pipeline.stop)
+            try:
+                await asyncio.to_thread(pipeline.stop)
+            except Exception:  # pragma: no cover - stopping must never raise
+                log.debug("error stopping a pipeline", exc_info=True)
+        self.channels.clear()
         if self.stt is not None:
-            await asyncio.to_thread(self.stt.stop, False)
+            await asyncio.to_thread(self.stt.stop, drain)
+            self.stt = None
+
+    async def shutdown(self) -> None:
+        await self._teardown_capture()
         await self.reasoner.stop()
         for task in self._tasks:
             task.cancel()
@@ -462,6 +487,47 @@ class Engine:
     def request_tick(self) -> None:
         self.reasoner.request_tick()
 
+    def set_language(self, language: str | None) -> None:
+        """Lock (or release) the transcription language, live (FR-34).
+
+        The STT worker reads ``language`` once per utterance, so this takes effect
+        on the next thing anyone says — no restart, no lost audio.
+        """
+        code = None if not language or language == "auto" else language.strip().lower()
+        self.config.stt.language = code or "auto"
+        session = self.store.session
+        session.language = code or session.language
+        if code:
+            # A locked language is the host's word, not a vote. Stop the ballot so
+            # the reasoner cannot drift it back (SPEC §9.3 rule 4).
+            session.language_votes = {code: 999}
+        else:
+            session.language_votes = {}
+        forced = True
+        if self.stt is not None:
+            self.stt.set_language(code)
+            forced = self.stt.engine.can_force_language
+        self.store.mark_dirty()
+        self.store.log_event("language", self.clock.now(), language=code or "auto")
+        self.store.apply_patch(Patch(language=code or ""))
+        if code and not forced:
+            engine_name = self.stt.engine.name if self.stt else self.config.stt.engine
+            self.store.emit(
+                "toast",
+                {
+                    "level": "warn",
+                    "text": (
+                        f"{engine_name} detects the language itself and cannot be forced. "
+                        f"Prompts and notes will use {code}; wrong-alphabet lines are dropped. "
+                        "For a real lock, restart with --set stt.engine=faster-whisper."
+                    ),
+                },
+            )
+        elif code:
+            self.store.emit("toast", {"level": "success", "text": f"Transcribing as {code}."})
+        else:
+            self.store.emit("toast", {"level": "info", "text": "Language detection back to auto."})
+
     def reload_outline(self) -> bool:
         """Re-parse the source outline, carry states across, rebuild derived data (FR-04)."""
         session = self.store.session
@@ -506,8 +572,18 @@ class Engine:
     def status_payload(self) -> dict[str, Any]:
         return {
             "audio": {p.cfg.name: round(p.level_db, 1) for p in self.channels},
-            "stt": self.stt.status() if self.stt else {"engine": self.config.stt.engine, "queue": 0},
-            "llm": self.reasoner.status.as_dict(),
+            "stt": self.stt.status()
+            if self.stt
+            else {
+                "engine": self.config.stt.engine,
+                "queue": 0,
+                "language": self.config.stt.language,
+            },
+            "llm": self.reasoner.status.as_dict()
+            | {
+                "interval_s": self.config.llm.tick_interval_s,
+                "min_new_words": self.config.llm.min_new_words,
+            },
             "clock": round(self.clock.now(), 2),
             "session_status": self.store.session.status,
             "sync_marks": list(self.store.session.sync_marks),

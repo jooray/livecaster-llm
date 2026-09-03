@@ -26,7 +26,21 @@ is_direct = true                           # wins the cross-talk dedupe against 
 [stt]
 engine = "auto"        # auto | parakeet-mlx | onnx-asr | whisper-mlx | faster-whisper
 model = ""             # empty = the engine's default model
-language = "auto"      # auto | sk | cs | en | …  (Parakeet always auto-detects)
+
+# auto | sk | cs | en | …  Only the Whisper engines can actually be *told* what
+# language they are hearing. Parakeet v3 detects it per utterance and cannot be
+# forced (DECISIONS D20): with it, this fixes the language of the notes and the
+# prompts, and drops lines that come back in the wrong alphabet entirely.
+# You can also lock or release the language live, from the pill in the top bar.
+#
+# For a hard lock — measured on Slovak, every line stayed Slovak:
+#   uv sync --extra whisper
+#   livecaster run osnova.md --set stt.engine=faster-whisper --set stt.language=sk
+# Cost: Whisper pads every utterance to 30 s, so it is ~15 s per utterance on CPU
+# (RTF 3.7) against Parakeet's 0.06. Right for a re-run afterwards, too slow live.
+language = "auto"
+cpu_threads = 0        # faster-whisper only; 0 = the CTranslate2 default
+
 vad_threshold = 0.5
 silence_ms = 600       # silence that ends an utterance
 min_speech_ms = 300    # shorter bursts are dropped

@@ -156,6 +156,29 @@ relative to that mark.
 
 Every configuration key can be overridden per run: `--set llm.tick_interval_s=15`.
 
+## If it crashes
+
+Everything is on disk as it happens, so a crash costs at most the utterance in flight:
+
+| File | Written |
+|---|---|
+| `session.json` | ≤ 1 s after any change, and at least every 30 s — node states, evidence, mentions, usage |
+| `transcript.jsonl` | as each utterance is transcribed |
+| `events.jsonl` | on every start/pause/finish/mark/sync |
+| `audio/*.wav` | continuously while capturing |
+| `llm.jsonl` | every LLM request and response |
+
+```bash
+uv run livecaster run osnova.md --resume sessions/2026-09-03_osnova
+```
+
+Resume reloads the transcript, restores every covered/touched/skipped mark and the clock (from the
+furthest of the transcript end, the recorded duration and the last sync mark — a long silence
+before the crash still happened), and picks up where it stopped. Pressing **Record again** after a
+`Finish` does the same thing without leaving the app; the wrap-up re-runs over everything at the
+end. `livecaster wrapup <dir>` and `livecaster export <dir>` regenerate the notes from a session
+directory alone, with or without the LLM.
+
 ## Configuration
 
 Livecaster reads `livecaster.toml` from the working directory, then `~/.config/livecaster/`.
@@ -165,7 +188,11 @@ Copy [`livecaster.toml.example`](livecaster.toml.example) and edit. Environment 
 ## Keyboard
 
 `j`/`k` move the selection · `c` covered · `x` skipped · `p` pin · `1`/`2`/`3` jump to a hot item ·
-`m` sync mark · `t` toggle transcript · `space` pause/resume · `?` help.
+`m` sync mark · `t` toggle transcript · `d` compact/full text · `space` pause/resume · `?` help.
+
+The live surface is deliberately terse: the map marks topics, the **Now** panel shows one line and
+three labels of at most five words each. Click an item — or press `d` — to see the model's reason
+and its suggested segue. Nothing there is meant to be read in full while you are talking.
 
 ## Privacy and cost
 
@@ -207,17 +234,42 @@ uv run livecaster run osnova.md --set llm.final_model=anthropic:claude-sonnet-5
 that provider's prices. Add or re-point providers under `[llm.providers.*]` in `livecaster.toml`
 (see [`livecaster.toml.example`](livecaster.toml.example)).
 
+## Language
+
+Parakeet v3 detects the language per utterance and **cannot be told which one to use** — its
+vocabulary has `<|sk|>` and friends, but neither `parakeet-mlx` nor priming the decoder reaches
+them (`DECISIONS.md`, D20). On poor audio it drifts: a Slovak recording through a Bluetooth headset
+mic came back partly in Polish and once in Russian.
+
+Three things you can do about it, in increasing order of cost:
+
+1. **Lock the language in the UI** — the 🌐 pill in the top bar, changeable mid-session. With
+   Parakeet this fixes the language of the notes and prompts and drops any line that comes back in
+   an alphabet Slovak never uses. It does not fix Polish-looking Slovak.
+2. **Use a better microphone.** Most of the drift is the 16 kHz Bluetooth headset link, not the
+   model. `livecaster devices` flags devices running in headset mode.
+3. **Switch to Whisper, which honours the language.** Measured on the same 23 utterances, every
+   line stayed Slovak and the words improved:
+
+   ```bash
+   uv sync --extra whisper     # faster-whisper is CTranslate2, not PyTorch
+   uv run livecaster run osnova.md --set stt.engine=faster-whisper --set stt.language=sk
+   ```
+
+   It costs ~15 s per utterance on CPU (Whisper pads everything to a 30 s window) against
+   Parakeet's ~0.3 s, so this is the setting for a re-run afterwards, not for a live show.
+
 ## Known issues
 
-- Parakeet v3 auto-detects its language and cannot be forced; if you need a forced language or one
-  outside its 25, configure `stt.engine = "faster-whisper"` (Linux) or, on macOS,
-  `uv sync --extra mac-whisper` first — `mlx-whisper` pulls in PyTorch, so it is not part of the
-  default macOS install (`DECISIONS.md`, D7).
+- Parakeet v3 cannot be forced to a language — see [Language](#language) above.
 - `reasoning_effort = "low"` on DeepSeek V4 Flash spends the whole token budget on reasoning and
   returns nothing. Livecaster sends `"none"`; do not raise it without re-measuring.
 - Single-microphone mode has no speaker labels by design; the prompts and exports handle their absence.
 - macOS system-audio permission is granted to the *terminal app*, not to Livecaster, and some
   terminals never raise the prompt. BlackHole is the documented fallback.
+- Opening a Bluetooth headset's microphone puts the whole link into 16 kHz mono handsfree mode, so
+  the headphones themselves start to sound like a phone call. That is macOS, not Livecaster. Use a
+  wired or USB microphone for a real episode.
 
 ## Documentation
 

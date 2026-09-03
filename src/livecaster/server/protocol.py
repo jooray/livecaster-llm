@@ -70,6 +70,7 @@ class DoneMessage(BaseModel):
 
     type: Literal["done"] = "done"
     paths: dict[str, str] = Field(default_factory=dict)
+    dir: str = ""
     duration_s: float = 0.0
     cost_usd: float = 0.0
     ticks: int = 0
@@ -105,7 +106,12 @@ class SelectAction(BaseModel):
     node_id: str | None = None
 
 
-ClientMessage = MarkAction | PinAction | SyncMarkAction | ControlAction | SelectAction
+class SetLanguageAction(BaseModel):
+    type: Literal["set_language"]
+    language: str = "auto"
+
+
+ClientMessage = MarkAction | PinAction | SyncMarkAction | ControlAction | SelectAction | SetLanguageAction
 
 
 def parse_client_message(data: dict[str, Any]) -> ClientMessage:
@@ -116,6 +122,7 @@ def parse_client_message(data: dict[str, Any]) -> ClientMessage:
         "sync_mark": SyncMarkAction,
         "control": ControlAction,
         "select": SelectAction,
+        "set_language": SetLanguageAction,
     }
     model = table.get(str(kind))
     if model is None:

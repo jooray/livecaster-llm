@@ -17,6 +17,7 @@ DEFAULT_MODEL = "mlx-community/whisper-large-v3-turbo"
 class WhisperMLXEngine:
     name = "whisper-mlx"
     languages = None  # open set
+    can_force_language = True
 
     def __init__(self, model: str = "") -> None:
         self.model_id = model or DEFAULT_MODEL

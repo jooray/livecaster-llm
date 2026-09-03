@@ -14,6 +14,10 @@
     buildId: window.BUILD_ID,
     status: {},
     connected: false,
+    // Live, the host reads with one eye. Everything the model says beyond a label
+    // is hidden until asked for; `d` flips the whole surface to the full text.
+    dense: localStorage.getItem("lc.dense") === "1",
+    expanded: null,
   };
 
   const $ = (sel) => document.querySelector(sel);
@@ -201,15 +205,43 @@
       cls.add("hot");
       parts.keycap.textContent = st.hot.rank && st.hot.rank <= 3 ? String(st.hot.rank) : "";
       parts.keycap.classList.toggle("hidden", !(st.hot.rank && st.hot.rank <= 3));
+      // The map marks; it does not explain. The words live in Now, one click away.
+      const show = state.dense || state.expanded === id || state.selected === id;
       parts.reason.textContent = st.hot.reason || "";
-      parts.reason.classList.toggle("hidden", !st.hot.reason);
+      parts.reason.classList.toggle("hidden", !(show && st.hot.reason));
       parts.segue.textContent = st.hot.segue || "";
-      parts.segue.classList.toggle("hidden", !st.hot.segue);
+      parts.segue.classList.toggle("hidden", !(show && st.hot.segue));
     } else {
       parts.keycap.classList.add("hidden");
       parts.reason.classList.add("hidden");
       parts.segue.classList.add("hidden");
     }
+  }
+
+  // The outline is written for reading before the show; live it has to fit a glance.
+  // Cut at the first real break — em dash, colon, bracket, sentence end.
+  function glance(text, max = 46) {
+    let t = (text || "").replace(/\s+/g, " ").trim();
+    const cut = t.search(/\s+[—–-]\s+|:\s|\s\(|[.?!]\s/);
+    if (cut > 12) t = t.slice(0, cut);
+    if (t.length > max) t = t.slice(0, max - 1).replace(/[\s,;.]+$/, "") + "…";
+    return t;
+  }
+
+  function expand(id) {
+    state.expanded = state.expanded === id ? null : id;
+    renderSide();
+    for (const nid of state.elements.keys()) updateNode(nid);
+  }
+
+  function setDense(on) {
+    state.dense = on;
+    localStorage.setItem("lc.dense", on ? "1" : "0");
+    document.body.classList.toggle("dense", on);
+    const btn = $("#btn-density");
+    if (btn) btn.textContent = on ? "▤" : "▥";
+    renderSide();
+    for (const id of state.elements.keys()) updateNode(id);
   }
 
   function coverableUnder(id) {
@@ -347,15 +379,20 @@
     for (const item of sug.next || []) {
       const node = state.nodesById.get(item.node_id);
       const li = el("li");
-      const head = el("div");
-      head.append(el("span", "rank", `${"①②③④⑤"[(item.rank || 1) - 1] || "•"} `));
-      const title = el("span", "title");
-      title.innerHTML = inlineMd(node ? (node.text_md || node.text) : item.node_id);
-      head.append(title);
+      const head = el("div", "head");
+      head.append(el("span", "rank", `${"①②③④⑤"[(item.rank || 1) - 1] || "•"}`));
+      head.append(el("span", "title", item.label || glance(node ? (node.text || node.text_md) : item.node_id)));
       li.append(head);
-      if (item.reason) li.append(el("div", "why", item.reason));
-      if (item.segue) li.append(el("div", "segue", `„${item.segue}“`));
-      li.addEventListener("click", () => select(item.node_id));
+      const open = state.dense || state.expanded === item.node_id;
+      if (item.reason || item.segue) {
+        const more = el("div", "more" + (open ? "" : " hidden"));
+        if (item.segue) more.append(el("div", "segue", `„${item.segue}“`));
+        if (item.reason) more.append(el("div", "why", item.reason));
+        li.append(more);
+        li.classList.add("expandable");
+      }
+      li.classList.toggle("open", open);
+      li.addEventListener("click", () => { expand(item.node_id); select(item.node_id); });
       next.append(li);
     }
 
@@ -363,8 +400,8 @@
     ql.innerHTML = "";
     for (const q of sug.questions || []) {
       const li = el("li");
-      li.append(el("div", "", q.text));
-      if (q.why) li.append(el("span", "why", q.why));
+      li.append(el("div", "qtext", q.text));
+      if (q.why && state.dense) li.append(el("span", "why", q.why));
       if (q.node_id) li.addEventListener("click", () => select(q.node_id));
       ql.append(li);
     }
@@ -456,7 +493,12 @@
     } else if (llm.state === "idle") {
       text = "LLM idle";
     }
-    setPill($("#llm-status"), text, cls);
+    const pill = $("#llm-status");
+    setPill(pill, text, cls);
+    pill.title = llm.interval_s
+      ? `A tick every ${llm.interval_s}s once ${llm.min_new_words} new words were said `
+        + `(livecaster.toml: llm.tick_interval_s / llm.min_new_words).`
+      : "";
 
     const u = (state.session && state.session.usage) || {};
     const cached = u.prompt_tokens ? Math.round((u.cached_tokens / u.prompt_tokens) * 100) : 0;
@@ -484,6 +526,52 @@
     line.setAttribute("points", points.map((ms, i) => `${(i * step).toFixed(1)},${(23 - (ms / max) * 22).toFixed(1)}`).join(" "));
     svg.classList.toggle("slow", points[points.length - 1] > 15000);
     svg.setAttribute("title", `last tick ${(points[points.length - 1] / 1000).toFixed(1)}s, worst ${(max / 1000).toFixed(1)}s`);
+  }
+
+  // ---------------------------------------------------------------- language
+
+  const LANGS = [
+    ["auto", "Auto-detect"], ["sk", "Slovenčina"], ["cs", "Čeština"], ["en", "English"],
+    ["de", "Deutsch"], ["es", "Español"], ["fr", "Français"], ["pl", "Polski"],
+    ["hu", "Magyar"], ["uk", "Українська"],
+  ];
+
+  function renderLanguagePill() {
+    const stt = state.status.stt || {};
+    const cur = stt.language || (state.session && state.session.language) || "auto";
+    const forced = cur !== "auto" && stt.can_force_language;
+    const pill = $("#lang-status");
+    if (!pill) return;
+    pill.textContent = `${cur === "auto" ? "🌐" : forced ? "🔒" : "🌐"} ${cur}`;
+    pill.classList.toggle("warn", cur !== "auto" && stt.can_force_language === false);
+    let title = `Transcription language: ${cur}. Click to change.`;
+    if (cur !== "auto" && stt.can_force_language === false) {
+      title = `${stt.engine || "this engine"} detects the language itself — ${cur} is a hint, not a lock. Click to change.`;
+    }
+    if (stt.dropped_language) title += ` ${stt.dropped_language} wrong-alphabet line(s) dropped.`;
+    pill.title = title;
+  }
+
+  function showLanguage() {
+    const stt = state.status.stt || {};
+    const cur = stt.language || (state.session && state.session.language) || "auto";
+    const note = $("#lang-note");
+    note.textContent = stt.can_force_language === false
+      ? `${stt.engine || "The engine"} detects the language per utterance and cannot be forced. `
+        + "Setting one here fixes the language of the notes and drops lines in the wrong alphabet. "
+        + "For a hard lock, restart with --set stt.engine=faster-whisper."
+      : `${stt.engine || "The engine"} will be told to transcribe in this language.`;
+    const box = $("#lang-choices");
+    box.innerHTML = "";
+    for (const [code, label] of LANGS) {
+      const b = el("button", "chip" + (code === cur ? " active" : ""), `${code} · ${label}`);
+      b.addEventListener("click", () => {
+        send({ type: "set_language", language: code });
+        $("#lang").close();
+      });
+      box.append(b);
+    }
+    $("#lang").showModal();
   }
 
   function showUsage() {
@@ -533,10 +621,15 @@
   }
 
   function renderStatusBar() {
+    renderLanguagePill();
     const status = (state.session && state.session.status) || "idle";
     const dot = $("#rec-dot");
     dot.className = "dot" + (status === "running" ? " rec" : status === "paused" ? " paused" : status === "finished" ? " done" : "");
-    $("#btn-start").classList.toggle("hidden", status !== "idle");
+    // Finished is not the end: a second take reuses the same clock and outline,
+    // and re-runs the wrap-up over everything.
+    const start = $("#btn-start");
+    start.classList.toggle("hidden", status !== "idle" && status !== "finished");
+    start.textContent = status === "finished" ? "Record again" : "Start";
     $("#btn-pause").classList.toggle("hidden", status !== "running");
     $("#btn-resume").classList.toggle("hidden", status !== "paused");
     $("#btn-finish").classList.toggle("hidden", status === "finished" || status === "finishing");
@@ -550,13 +643,82 @@
     setTimeout(() => node.remove(), 6000);
   }
 
+  // ------------------------------------------------------------------ result
+
+  const RESULT_ORDER = ["show_notes", "outline_annotated", "transcript_md", "transcript_srt", "chapters"];
+  const RESULT_LABEL = {
+    show_notes: "Show notes",
+    outline_annotated: "Outline",
+    transcript_md: "Transcript",
+    transcript_srt: "SRT",
+    chapters: "Chapters",
+    final_analysis: "JSON",
+  };
+
+  function resultNames(paths) {
+    const names = Object.keys(paths || {});
+    return names.sort((a, b) => {
+      const ia = RESULT_ORDER.indexOf(a), ib = RESULT_ORDER.indexOf(b);
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+    });
+  }
+
+  async function showResult(name) {
+    const body = $("#result-body");
+    for (const b of document.querySelectorAll("#result-files button")) {
+      b.classList.toggle("active", b.dataset.name === name);
+    }
+    body.textContent = "loading…";
+    try {
+      const text = await (await fetch(`/api/final/${encodeURIComponent(name)}`)).text();
+      if (name.endsWith("srt") || name === "transcript_srt") {
+        body.innerHTML = "";
+        body.append(el("pre", "", text));
+      } else if (window.marked) {
+        body.innerHTML = window.marked.parse(text);
+      } else {
+        body.innerHTML = "";
+        body.append(el("pre", "", text));
+      }
+    } catch (err) {
+      body.textContent = `could not read ${name}: ${err}`;
+    }
+  }
+
+  function renderResult(paths, dir) {
+    const files = $("#result-files");
+    files.innerHTML = "";
+    const names = resultNames(paths);
+    if (!names.length) return false;
+    for (const name of names) {
+      const b = el("button", "chip", RESULT_LABEL[name] || name);
+      b.dataset.name = name;
+      b.title = paths[name];
+      b.addEventListener("click", () => showResult(name));
+      files.append(b);
+    }
+    if (dir) {
+      const p = el("div", "result-dir", dir);
+      p.title = "click to copy";
+      p.addEventListener("click", () => {
+        navigator.clipboard?.writeText(dir).then(() => toast("info", "Path copied"), () => {});
+      });
+      files.append(p);
+    }
+    $("#tab-result").classList.remove("hidden");
+    showResult(names[0]);
+    return true;
+  }
+
   function showDone(msg) {
     const body = $("#done-body");
     body.innerHTML = "";
-    if (msg.error) body.append(el("p", "", `Wrap-up failed: ${msg.error}`));
+    if (msg.error) body.append(el("p", "warn", `Wrap-up failed: ${msg.error}`));
     body.append(el("p", "", `Duration ${hms(msg.duration_s)} · ${msg.ticks} ticks · $${(msg.cost_usd || 0).toFixed(3)}`));
-    for (const [name, path] of Object.entries(msg.paths || {})) {
-      body.append(el("code", "", `${name}: ${path}`));
+    if (renderResult(msg.paths, msg.dir)) {
+      const open = el("button", "primary", "Open show notes");
+      open.addEventListener("click", () => { $("#done").close(); showTab("result"); });
+      body.append(open);
     }
     $("#done").showModal();
   }
@@ -576,6 +738,7 @@
     else if (key === "p" && state.selected) { togglePin(state.selected); e.preventDefault(); }
     else if (key === "m") { send({ type: "sync_mark" }); e.preventDefault(); }
     else if (key === "t") { showTab("transcript"); e.preventDefault(); }
+    else if (key === "d") { setDense(!state.dense); e.preventDefault(); }
     else if (key === " ") {
       const status = (state.session && state.session.status) || "idle";
       const action = status === "running" ? "pause" : status === "paused" ? "resume" : "start";
@@ -608,7 +771,10 @@
   });
 
   $("#btn-help").addEventListener("click", () => $("#help").showModal());
+  $("#btn-density").addEventListener("click", () => setDense(!state.dense));
+  setDense(state.dense);
   $("#cost-status").addEventListener("click", showUsage);
+  $("#lang-status").addEventListener("click", showLanguage);
   $("#btn-theme").addEventListener("click", () => {
     const cur = document.documentElement.dataset.theme === "light" ? "dark" : "light";
     document.documentElement.dataset.theme = cur;
@@ -631,6 +797,12 @@
     if (data.build_id && state.buildId && data.build_id !== state.buildId) location.reload();
     applyState(data.session);
     applyStatus(data.status);
+    // Reloading a finished session (or resuming one) must still show its exports.
+    if (data.session && Object.keys(data.session.final_paths || {}).length) {
+      fetch("/api/final").then((r) => r.json())
+        .then((f) => renderResult(f.paths, f.dir))
+        .catch(() => renderResult(data.session.final_paths, null));
+    }
   }).catch(() => { /* the websocket will deliver it */ });
 
   connect();
