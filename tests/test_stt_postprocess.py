@@ -4,7 +4,14 @@ from __future__ import annotations
 
 import pytest
 
-from livecaster.stt.postprocess import clean, has_repetition, is_filler_only, is_hallucination
+from livecaster.stt.postprocess import (
+    clean,
+    has_repetition,
+    is_filler_only,
+    is_hallucination,
+    script_of,
+    wrong_script,
+)
 
 
 @pytest.mark.parametrize("text", ["hm", "Mhm.", "ehm ehm", "uh, um", "  Hmm  "])
@@ -65,3 +72,44 @@ def test_mock_engine_describes_what_it_heard():
     assert scripted.transcribe(np.zeros(10, dtype=np.float32), None).text == "prvá veta"
     assert scripted.transcribe(np.zeros(10, dtype=np.float32), None).text == "druhá veta"
     assert scripted.transcribe(np.zeros(10, dtype=np.float32), None).text == "prvá veta"
+
+
+# --- language guard (D20) ---------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Ну, мой брат за мною.",  # what Parakeet actually returned for Slovak speech
+        "Всё хорошо, спасибо.",
+    ],
+)
+def test_a_locked_latin_language_rejects_cyrillic(text):
+    assert wrong_script(text, "sk")
+    assert wrong_script(text, "cs")
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Ako to celé robíš?",
+        # Polish-looking Slovak is the drift this guard honestly cannot catch.
+        "Teamow metoda jest taka troszkę naroczniejsza.",
+    ],
+)
+def test_latin_text_survives_a_latin_lock(text):
+    assert not wrong_script(text, "sk")
+
+
+def test_cyrillic_survives_when_that_is_the_locked_language():
+    assert not wrong_script("Ну, мой брат за мной.", "ru")
+
+
+def test_nothing_is_rejected_while_the_language_is_open():
+    assert not wrong_script("Ну, мой брат за мной.", None)
+    assert not wrong_script("Ну, мой брат за мной.", "auto")
+
+
+def test_too_few_letters_to_judge():
+    assert script_of("да") is None
+    assert not wrong_script("да", "sk")

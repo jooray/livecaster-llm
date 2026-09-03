@@ -132,13 +132,16 @@ def test_index_html_substitutes_the_theme():
 
 def test_ui_files_parse_as_expected():
     app_js = (UI_DIR / "app.js").read_text(encoding="utf-8")
-    for key in ["j", "k", "c", "x", "p", "m", "t"]:
+    for key in ["j", "k", "c", "x", "p", "m", "t", "d"]:
         assert f'key === "{key}"' in app_js
     assert "location.reload()" in app_js
     assert "localStorage" in app_js
     assert 'action = status === "running" ? "pause"' in app_js
     assert "drawSparkline" in app_js and "showUsage" in app_js
     assert "renderPreflight" in app_js  # FR-05: pre-flight questions shown on demand
+    assert "renderResult" in app_js and "/api/final/" in app_js  # exports shown in the UI
+    assert "setDense" in app_js and "glance(" in app_js  # compact live surface (D22)
+    assert "set_language" in app_js  # the language can be locked from the top bar
     css = (UI_DIR / "styles.css").read_text(encoding="utf-8")
     assert "--font: 18px" in css
     for state in ["warm", "touched", "covered", "skipped", "hot", "pinned", "current", "selected"]:
@@ -146,3 +149,50 @@ def test_ui_files_parse_as_expected():
     html = (UI_DIR / "index.html").read_text(encoding="utf-8")
     assert json.dumps("edge-up")[1:-1] in html
     assert "sparkline" in html and "usage-body" in html
+    assert "lang-status" in html and "btn-density" in html and "result-body" in html
+
+
+# --- the wrap-up's files, served to the UI ---------------------------------
+
+
+def test_api_final_lists_nothing_before_the_wrap_up(client):
+    payload = client.get("/api/final").json()
+    assert payload["paths"] == {}
+    assert payload["dir"].endswith(client.app.state.test_engine.store.dir.name)
+
+
+def test_api_final_serves_an_artifact(client):
+    engine = client.app.state.test_engine
+    engine.store.final_dir.mkdir(parents=True, exist_ok=True)
+    notes = engine.store.final_dir / "show_notes.md"
+    notes.write_text("# Dych\n\nZhrnutie.\n", encoding="utf-8")
+    engine.store.session.final_paths = {"show_notes": str(notes)}
+
+    listing = client.get("/api/final").json()
+    assert listing["paths"] == {"show_notes": str(notes)}
+    body = client.get("/api/final/show_notes")
+    assert body.status_code == 200
+    assert "Zhrnutie" in body.text
+    assert body.headers["cache-control"] == "no-store"
+
+
+def test_api_final_rejects_an_unknown_name(client):
+    assert client.get("/api/final/passwd").status_code == 404
+
+
+def test_api_final_refuses_to_leave_the_session_directory(client, tmp_path: Path):
+    engine = client.app.state.test_engine
+    outside = tmp_path / "secret.md"
+    outside.write_text("nope", encoding="utf-8")
+    engine.store.session.final_paths = {"show_notes": str(outside)}
+    assert client.get("/api/final/show_notes").status_code == 404
+
+
+def test_websocket_sets_the_language(client):
+    with client.websocket_connect("/ws") as ws:
+        ws.receive_json()  # hello
+        ws.receive_json()  # state
+        ws.send_json({"type": "set_language", "language": "sk"})
+        seen = [ws.receive_json() for _ in range(3)]
+    assert any(m.get("type") == "patch" and m.get("language") == "sk" for m in seen)
+    assert client.app.state.test_engine.config.stt.language == "sk"

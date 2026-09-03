@@ -406,3 +406,104 @@ def test_native_recording_writes_the_device_rate_stream(tmp_path: Path, config: 
     assert rate == 48_000
     assert len(audio) == 9600
     assert pipeline.dropped_native == 0
+
+
+# --- a second take (D21) ---------------------------------------------------
+
+
+async def test_start_after_finish_does_not_capture_twice(
+    tmp_path: Path, osnova_path: Path, config: Config, fixtures: Path, monkeypatch
+):
+    """Finish used to leave the stopped pipelines in place, so the next Start
+    restarted them alongside a fresh set and recorded every utterance twice."""
+    from livecaster.stt.mock import MockEngine
+
+    wav = write_wav(tmp_path / "tone.wav", seconds=2.0)
+    config.audio.channels = [ChannelConfig(name="Room", source=f"file:{wav}", record=False)]
+    config.audio.record = False
+    config.stt.engine = "mock"
+    store = create_session(osnova_path, config, mode="replay", base_dir=tmp_path / "sessions")
+    monkeypatch.setattr("livecaster.engine.select_engine", lambda *a, **k: MockEngine(["ahoj"]))
+
+    engine = Engine(store, config, MockLLM(fixtures / "tick_responses"), clock=ManualClock())
+    await engine.startup()
+    await engine.start_capture()
+    assert len(engine.channels) == 1
+    first = engine.channels[0]
+
+    await engine.finish()
+    assert engine.store.session.status == "finished"
+
+    await engine.start_capture()
+    assert len(engine.channels) == 1, "a second take must replace the pipelines, not add to them"
+    assert engine.channels[0] is not first
+    assert engine.store.session.status == "running"
+    # The wrap-up has to be able to run again over the longer session.
+    assert engine.finish_result is None
+    await engine.shutdown()
+    assert engine.channels == []
+
+
+async def test_shutdown_forgets_the_pipelines(
+    tmp_path: Path, osnova_path: Path, config: Config, fixtures: Path, monkeypatch
+):
+    from livecaster.stt.mock import MockEngine
+
+    wav = write_wav(tmp_path / "tone.wav", seconds=1.0)
+    config.audio.channels = [ChannelConfig(name="Room", source=f"file:{wav}", record=False)]
+    config.audio.record = False
+    config.stt.engine = "mock"
+    store = create_session(osnova_path, config, mode="replay", base_dir=tmp_path / "sessions")
+    monkeypatch.setattr("livecaster.engine.select_engine", lambda *a, **k: MockEngine(["ahoj"]))
+
+    engine = Engine(store, config, MockLLM(fixtures / "tick_responses"), clock=ManualClock())
+    await engine.startup()
+    await engine.start_capture()
+    await engine.shutdown()
+    assert engine.channels == []
+    assert engine.stt is None
+
+
+# --- language (FR-34, D20) -------------------------------------------------
+
+
+async def test_locking_the_language_stops_the_vote(engine: Engine):
+    await engine.startup()
+    engine.store.session.language_votes = {"cs": 3, "sk": 1}
+    engine.set_language("sk")
+    assert engine.config.stt.language == "sk"
+    assert engine.store.session.language == "sk"
+    assert engine.store.session.language_votes == {"sk": 999}
+    await engine.shutdown()
+
+
+async def test_releasing_the_language_reopens_the_vote(engine: Engine):
+    await engine.startup()
+    engine.set_language("sk")
+    engine.set_language("auto")
+    assert engine.config.stt.language == "auto"
+    assert engine.store.session.language_votes == {}
+    # The last known language stays as the prompt's best guess.
+    assert engine.store.session.language == "sk"
+    await engine.shutdown()
+
+
+async def test_the_language_change_reaches_the_running_worker(
+    tmp_path: Path, osnova_path: Path, config: Config, fixtures: Path, monkeypatch
+):
+    from livecaster.stt.mock import MockEngine
+
+    wav = write_wav(tmp_path / "tone.wav", seconds=1.0)
+    config.audio.channels = [ChannelConfig(name="Room", source=f"file:{wav}", record=False)]
+    config.audio.record = False
+    config.stt.engine = "mock"
+    store = create_session(osnova_path, config, mode="replay", base_dir=tmp_path / "sessions")
+    monkeypatch.setattr("livecaster.engine.select_engine", lambda *a, **k: MockEngine(["ahoj"]))
+
+    engine = Engine(store, config, MockLLM(fixtures / "tick_responses"), clock=ManualClock())
+    await engine.startup()
+    await engine.start_capture()
+    assert engine.stt is not None and engine.stt.language is None
+    engine.set_language("cs")
+    assert engine.stt.language == "cs"
+    await engine.shutdown()
