@@ -1,0 +1,256 @@
+{
+  "language": "sk",
+  "labels": {
+    "summary": "Zhrnutie",
+    "chapters": "Kapitoly",
+    "covered": "Prebrali sme",
+    "uncovered": "Nestihli sme",
+    "titles": "Návrhy názvov",
+    "description_short": "Krátky popis",
+    "description_long": "Dlhý popis",
+    "social": "Príspevky na sociálne siete",
+    "quotes": "Citáty",
+    "mentions": "Spomenuté / odkazy",
+    "promises": "Sľuby z nahrávky",
+    "new_topics": "Témy mimo osnovy"
+  },
+  "summary": [
+    "Zuzka vysvetľuje, prečo je dych jediná funkcia autonómneho nervového systému, ktorú vieme vedome ovládať.",
+    "Prechádzame fyziológiu predĺženého výdychu, CO2 toleranciu a nosové dýchanie pri záťaži.",
+    "Druhá polovica epizódy porovnáva dychovú prax s psychedelikami a s Wim Hof metódou.",
+    "Na záver hovoríme o diagnostike dychového vzoru a o tom, kedy je dych len náplasť na hlbší problém."
+  ],
+  "chapters": [
+    {
+      "title": "Úvod a predstavenie",
+      "start_t": 5.0,
+      "end_t": 62.0,
+      "node_ids": [
+        "T5",
+        "T6",
+        "T7"
+      ]
+    },
+    {
+      "title": "Čo sa deje na session",
+      "start_t": 62.0,
+      "end_t": 95.0,
+      "node_ids": [
+        "T9"
+      ]
+    },
+    {
+      "title": "Fyziológia výdychu",
+      "start_t": 95.0,
+      "end_t": 130.0,
+      "node_ids": [
+        "T11",
+        "T12"
+      ]
+    },
+    {
+      "title": "Chýbajúce štúdie",
+      "start_t": 130.0,
+      "end_t": 150.0,
+      "node_ids": [
+        "T13",
+        "T14"
+      ]
+    },
+    {
+      "title": "CO2 tolerancia a nosové dýchanie",
+      "start_t": 150.0,
+      "end_t": 185.0,
+      "node_ids": [
+        "T15",
+        "T16",
+        "T17"
+      ]
+    },
+    {
+      "title": "Psychedeliká verzus dych",
+      "start_t": 185.0,
+      "end_t": 235.0,
+      "node_ids": [
+        "T27",
+        "T28",
+        "T29",
+        "T30"
+      ]
+    },
+    {
+      "title": "Kotva pozornosti a sauna",
+      "start_t": 235.0,
+      "end_t": 275.0,
+      "node_ids": [
+        "T31",
+        "T32",
+        "T33",
+        "T34"
+      ]
+    },
+    {
+      "title": "Diagnostika a koreňový problém",
+      "start_t": 275.0,
+      "end_t": 348.0,
+      "node_ids": [
+        "T22",
+        "T24",
+        "T25"
+      ]
+    }
+  ],
+  "covered": [
+    {
+      "node_id": "T5",
+      "note": "Spoločná session ako dôvod, prečo práve teraz."
+    },
+    {
+      "node_id": "T11",
+      "note": "Predĺžený výdych a parasympatikus, merateľné na HRV."
+    },
+    {
+      "node_id": "T15",
+      "note": "Retencia po výdychu a jej vplyv na úzkosť."
+    },
+    {
+      "node_id": "T29",
+      "note": "Porovnanie s ayahuascou a psilocybínom."
+    }
+  ],
+  "uncovered": [
+    {
+      "node_id": "T19",
+      "note": "Dych ako denný systémový proces sme nestihli."
+    },
+    {
+      "node_id": "T36",
+      "note": "Celá lunarpunk sekcia zostala na ďalšiu epizódu."
+    }
+  ],
+  "titles": [
+    {
+      "text": "Dych ako nástroj slobody: rozhovor s Zuzkou",
+      "style": "descriptive"
+    },
+    {
+      "text": "Prečo dvadsať minút dychu porazí sedemhodinový trip",
+      "style": "curiosity"
+    },
+    {
+      "text": "„Dych je zmenený stav vedomia bez chémie“",
+      "style": "quote"
+    },
+    {
+      "text": "Vieme vôbec dýchať?",
+      "style": "question"
+    },
+    {
+      "text": "CO2, vagus a sloboda",
+      "style": "short"
+    },
+    {
+      "text": "Ako si nastaviť nervový systém za päť minút denne",
+      "style": "descriptive"
+    },
+    {
+      "text": "Čo sa stane, keď predĺžiš výdych",
+      "style": "curiosity"
+    },
+    {
+      "text": "Dych verzus psychedeliká",
+      "style": "short"
+    },
+    {
+      "text": "Je tvoj problém naozaj dych?",
+      "style": "question"
+    },
+    {
+      "text": "„Optimalizujú nesprávnu vec“",
+      "style": "quote"
+    }
+  ],
+  "description_short": "Zuzka z dychova-praca.example o tom, prečo predĺžený výdych mení fyziológiu, čo je CO2 tolerancia a ako sa dych líši od psychedelík.",
+  "description_long": "V tejto epizóde sa s Zuzkou z dychova-praca.example rozprávame o dychu ako o praktickom nástroji, nie o ezoterike.\n\nPrejdeme fyziológiu predĺženého výdychu a jeho okamžitý efekt na HRV, tréning tolerancie na oxid uhličitý v štýle Buteyko a nosové dýchanie pri intenzívnom výkone.\n\nDruhá polovica epizódy porovnáva dychovú prax s psychedelikami a s Wim Hof metódou a hovorí o tom, kedy je dych len príjemná náplasť na hlbší problém.",
+  "social": [
+    {
+      "platform": "x",
+      "text": "Dvadsať minút dychu je použiteľnejšie ako sedemhodinový trip. Nová epizóda s Zuzkou z dychova-praca.example je vonku."
+    },
+    {
+      "platform": "linkedin",
+      "text": "Nová epizóda: dych ako denná údržba nervového systému. S Zuzkou hovoríme o tom, čo sa dá zmerať, čo je len tradícia, a kedy je dych len náplasť na hlbší problém."
+    }
+  ],
+  "quotes": [
+    {
+      "t": 88.0,
+      "speaker": "Guest",
+      "text": "Lebo je to jediná funkcia autonómneho nervového systému, ktorú vieš vedome ovládať."
+    },
+    {
+      "t": 186.0,
+      "speaker": "Guest",
+      "text": "Dych je pre mňa zmenený stav vedomia bez chémie."
+    },
+    {
+      "t": 292.0,
+      "speaker": "Guest",
+      "text": "Ak niekto spí päť hodín, dych mu nepomôže."
+    }
+  ],
+  "mentions": [
+    {
+      "kind": "person",
+      "text": "Wim Hof",
+      "context": "porovnanie intenzity",
+      "url": null,
+      "needs_link": true,
+      "search_query": "Wim Hof method"
+    },
+    {
+      "kind": "book",
+      "text": "Breath (James Nestor)",
+      "context": "odporúčaná kniha",
+      "url": null,
+      "needs_link": true,
+      "search_query": "James Nestor Breath book"
+    },
+    {
+      "kind": "concept",
+      "text": "Buteyko",
+      "context": "tréning CO2 tolerancie",
+      "url": null,
+      "needs_link": true,
+      "search_query": "Buteyko method breathing"
+    },
+    {
+      "kind": "event",
+      "text": "Kryptocamp",
+      "context": "workshop hostky",
+      "url": null,
+      "needs_link": true,
+      "search_query": "Kryptocamp konferencia"
+    },
+    {
+      "kind": "link",
+      "text": "dychova-praca.example",
+      "context": "stránka hostky",
+      "url": "https://dychova-praca.example",
+      "needs_link": false,
+      "search_query": null
+    }
+  ],
+  "promises": [
+    {
+      "t": 228.0,
+      "text": "Pošleme link na knihu Breath do popisu epizódy."
+    }
+  ],
+  "new_topics": [
+    {
+      "title": "Neurofeedback",
+      "summary": "Hosť porovnáva dychovú prax so skúsenosťou s neurofeedbackom."
+    }
+  ]
+}

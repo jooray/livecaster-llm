@@ -1,0 +1,48 @@
+{
+  "language": "sk",
+  "current": {
+    "node_id": "T14",
+    "summary": "Chýbajúce randomizované štúdie a test času."
+  },
+  "covered": [
+    {
+      "id": "T13",
+      "confidence": 0.75,
+      "evidence": "Lebo je to jediná funkcia autonómneho nervového systému",
+      "t": 88.0
+    },
+    {
+      "id": "T14",
+      "confidence": 0.83,
+      "evidence": "randomizované double-blind štúdie na toto skoro neexistujú",
+      "t": 118.0
+    }
+  ],
+  "touched": [],
+  "hot": [
+    {
+      "id": "T15",
+      "score": 0.85,
+      "reason": "Hosť sa práve spýtal na Buteyko",
+      "segue": "Keď už sme pri tom — čo je CO2 tolerancia?"
+    }
+  ],
+  "questions": [
+    {
+      "text": "Ako by vyzerala dobrá štúdia na dych?",
+      "node_id": "T14",
+      "why": "Prirodzené pokračovanie"
+    }
+  ],
+  "mentions": [
+    {
+      "kind": "concept",
+      "text": "Buteyko",
+      "context": "metóda tréningu CO2 tolerancie",
+      "url": null,
+      "needs_link": true,
+      "search_query": "Buteyko method breathing"
+    }
+  ],
+  "new_topics": []
+}

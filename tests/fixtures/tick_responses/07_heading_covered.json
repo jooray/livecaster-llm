@@ -1,0 +1,33 @@
+{
+  "language": "sk",
+  "current": {
+    "node_id": "T17",
+    "summary": "Uzavretá fyziologická časť."
+  },
+  "covered": [
+    {
+      "id": "T17",
+      "confidence": 0.8,
+      "evidence": "To je skôr o mobilizácii hrudníka a rebier",
+      "t": 160.0
+    },
+    {
+      "id": "T10",
+      "confidence": 0.9,
+      "evidence": "prebrali sme celú fyziologickú sekciu",
+      "t": 162.0
+    }
+  ],
+  "touched": [],
+  "hot": [
+    {
+      "id": "T27",
+      "score": 0.7,
+      "reason": "Hostka spomenula zmenené stavy vedomia",
+      "segue": "Ty to voláš zmenený stav bez chémie — čo tým myslíš?"
+    }
+  ],
+  "questions": [],
+  "mentions": [],
+  "new_topics": []
+}

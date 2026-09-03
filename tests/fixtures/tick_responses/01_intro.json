@@ -1,0 +1,38 @@
+{
+  "language": "sk",
+  "current": {
+    "node_id": "T5",
+    "summary": "Úvod: prečo práve teraz dych, po spoločnej session."
+  },
+  "covered": [
+    {
+      "id": "T5",
+      "confidence": 0.82,
+      "evidence": "My sme spolu mali session minulý týždeň",
+      "t": 18.0
+    }
+  ],
+  "touched": [
+    {
+      "id": "T6",
+      "note": "Zuzka sa práve predstavuje"
+    }
+  ],
+  "hot": [
+    {
+      "id": "T6",
+      "score": 0.8,
+      "reason": "Hostka sa práve predstavuje, je čas na jej pozadie",
+      "segue": "Povedz nám krátko, kde si sa to všetko učila."
+    }
+  ],
+  "questions": [
+    {
+      "text": "Čo presne sa v tej session dialo?",
+      "node_id": "T5",
+      "why": "Poslucháč nevie, čo si zažil"
+    }
+  ],
+  "mentions": [],
+  "new_topics": []
+}

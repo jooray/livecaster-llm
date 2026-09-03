@@ -1,0 +1,64 @@
+{
+  "language": "sk",
+  "current": {
+    "node_id": "T29",
+    "summary": "Odporúčania na literatúru a sľub odkazu."
+  },
+  "covered": [
+    {
+      "id": "T28",
+      "confidence": 0.8,
+      "evidence": "Wim Hof je iná intenzita a iný kontext",
+      "t": 214.0
+    },
+    {
+      "id": "T29",
+      "confidence": 0.86,
+      "evidence": "Sú to komplementárne nástroje",
+      "t": 206.0
+    },
+    {
+      "id": "T30",
+      "confidence": 0.81,
+      "evidence": "sedemhodinový trip nie je použiteľný v bežnej terapeutickej praxi",
+      "t": 210.0
+    }
+  ],
+  "touched": [],
+  "hot": [
+    {
+      "id": "T41",
+      "score": 0.72,
+      "reason": "Práve padol Kryptocamp",
+      "segue": "Prečo vlastne prednášaš na Kryptocampe?"
+    }
+  ],
+  "questions": [],
+  "mentions": [
+    {
+      "kind": "book",
+      "text": "Breath (James Nestor)",
+      "context": "odporúčaná kniha o dychu",
+      "url": null,
+      "needs_link": true,
+      "search_query": "James Nestor Breath book"
+    },
+    {
+      "kind": "promise",
+      "text": "pošleme link do popisu",
+      "context": "sľub odkazu na knihu v popise epizódy",
+      "url": null,
+      "needs_link": false,
+      "search_query": null
+    },
+    {
+      "kind": "event",
+      "text": "Kryptocamp",
+      "context": "hostka tam bude mať workshop",
+      "url": null,
+      "needs_link": true,
+      "search_query": "Kryptocamp konferencia"
+    }
+  ],
+  "new_topics": []
+}

@@ -1,0 +1,61 @@
+{
+  "language": "sk",
+  "current": {
+    "node_id": "T27",
+    "summary": "Zmenené stavy vedomia bez chémie."
+  },
+  "covered": [
+    {
+      "id": "T27",
+      "confidence": 0.78,
+      "evidence": "Dych je pre mňa zmenený stav vedomia bez chémie",
+      "t": 186.0
+    }
+  ],
+  "touched": [
+    {
+      "id": "T30",
+      "note": "Praktickosť dychu oproti dlhým sessionom"
+    }
+  ],
+  "hot": [
+    {
+      "id": "T29",
+      "score": 0.95,
+      "reason": "Hosť práve spomenul ayahuascu — sekcia 3 sa na to pýta priamo",
+      "segue": "Keď už si spomenula ayahuascu — ako to vnímaš oproti dychu?"
+    },
+    {
+      "id": "T28",
+      "score": 0.7,
+      "reason": "Wim Hof práve zaznel",
+      "segue": "A v čom sa tvoja práca líši od Wim Hof metódy?"
+    }
+  ],
+  "questions": [
+    {
+      "text": "Máš klientov, ktorí kombinujú oboje?",
+      "node_id": "T29",
+      "why": "Priamo z osnovy, teraz sedí"
+    }
+  ],
+  "mentions": [
+    {
+      "kind": "person",
+      "text": "Wim Hof",
+      "context": "porovnanie intenzity s jej prácou",
+      "url": null,
+      "needs_link": true,
+      "search_query": "Wim Hof method"
+    },
+    {
+      "kind": "concept",
+      "text": "ayahuasca",
+      "context": "klienti prichádzajú po ayahuaske",
+      "url": null,
+      "needs_link": false,
+      "search_query": null
+    }
+  ],
+  "new_topics": []
+}

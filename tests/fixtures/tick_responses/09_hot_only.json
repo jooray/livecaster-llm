@@ -1,0 +1,38 @@
+{
+  "language": "sk",
+  "current": {
+    "node_id": "T29",
+    "summary": "Psychedeliká verzus dych ako nástroje."
+  },
+  "covered": [],
+  "touched": [],
+  "hot": [
+    {
+      "id": "T29",
+      "score": 0.9,
+      "reason": "Téma stále beží, osnova sa na to pýta priamo",
+      "segue": "Sú to komplementárne nástroje, alebo úplne iné kategórie?"
+    },
+    {
+      "id": "T30",
+      "score": 0.8,
+      "reason": "Práve zaznela praktickosť dvadsiatich minút",
+      "segue": "Je to pre teba ten svätý grál pre 1:1 prácu?"
+    },
+    {
+      "id": "T33",
+      "score": 0.55,
+      "reason": "Sauna a rituál sú blízko",
+      "segue": "A sauna? Vnímaš to podobne?"
+    }
+  ],
+  "questions": [
+    {
+      "text": "Kde je hranica, kedy to už neodporúčaš?",
+      "node_id": "T29",
+      "why": "Riziká zatiaľ nezazneli"
+    }
+  ],
+  "mentions": [],
+  "new_topics": []
+}

@@ -1,0 +1,83 @@
+{
+  "language": "sk",
+  "current": {
+    "node_id": "T24",
+    "summary": "Kedy je dych len náplasť na hlbší problém."
+  },
+  "covered": [
+    {
+      "id": "T32",
+      "confidence": 0.8,
+      "evidence": "Tri nádychy s dlhším výdychom, každú hodinu",
+      "t": 246.0
+    },
+    {
+      "id": "T34",
+      "confidence": 0.78,
+      "evidence": "Je to únik a reset. Pravidelná prax je nudnejšia",
+      "t": 258.0
+    },
+    {
+      "id": "T22",
+      "confidence": 0.85,
+      "evidence": "natočím si dychový vzor, pozriem sa na pomer nádych výdych",
+      "t": 276.0
+    },
+    {
+      "id": "T24",
+      "confidence": 0.86,
+      "evidence": "Pýtam sa na spánok, na cukor, na traumu",
+      "t": 292.0
+    },
+    {
+      "id": "T25",
+      "confidence": 0.8,
+      "evidence": "Nosové dýchanie a predĺžený výdych sa dajú robiť kdekoľvek, aj za volantom",
+      "t": 316.0
+    },
+    {
+      "id": "T5",
+      "confidence": 0.95,
+      "evidence": "pokus o opätovné pokrytie po manuálnom odznačení",
+      "t": 18.0
+    }
+  ],
+  "touched": [],
+  "hot": [
+    {
+      "id": "T29",
+      "score": 0.85,
+      "reason": "Osnova sa na psychedeliká pýta priamo a ešte nie je uzavretá",
+      "segue": "Ešte sa vrátim k psychedelikám — kombinujú to tvoji klienti?"
+    },
+    {
+      "id": "T23",
+      "score": 0.6,
+      "reason": "Prečo dych a nie iné veci",
+      "segue": "Prečo práve dych a nie milión iných vecí?"
+    }
+  ],
+  "questions": [
+    {
+      "text": "Ako spoznáš, že je dych len náplasť?",
+      "node_id": "T24",
+      "why": "Priamo z osnovy"
+    },
+    {
+      "text": "Čo by si poradila niekomu, kto začína?",
+      "node_id": null,
+      "why": "Dobré na záver"
+    }
+  ],
+  "mentions": [
+    {
+      "kind": "concept",
+      "text": "neurofeedback",
+      "context": "porovnanie s dychovou praxou",
+      "url": null,
+      "needs_link": true,
+      "search_query": "neurofeedback breathing"
+    }
+  ],
+  "new_topics": []
+}

@@ -1,0 +1,47 @@
+{
+  "language": "sk",
+  "current": {
+    "node_id": "T11",
+    "summary": "Fyziológia: predĺžený výdych a parasympatikus."
+  },
+  "covered": [
+    {
+      "id": "T11",
+      "confidence": 0.88,
+      "evidence": "Predĺžený výdych aktivuje parasympatikus",
+      "t": 96.0
+    },
+    {
+      "id": "T12",
+      "confidence": 0.8,
+      "evidence": "Je to merateľné, nie je to ezoterika",
+      "t": 104.0
+    }
+  ],
+  "touched": [
+    {
+      "id": "T13",
+      "note": "Otázka prečo to funguje práve zaznela"
+    }
+  ],
+  "hot": [
+    {
+      "id": "T14",
+      "score": 0.72,
+      "reason": "Hostka práve priznala chýbajúce štúdie",
+      "segue": "Takže funguje to, aj keď nevieme presne prečo?"
+    }
+  ],
+  "questions": [],
+  "mentions": [
+    {
+      "kind": "tool",
+      "text": "HRV",
+      "context": "meranie variability srdcového rytmu",
+      "url": null,
+      "needs_link": true,
+      "search_query": "HRV merania dychu"
+    }
+  ],
+  "new_topics": []
+}

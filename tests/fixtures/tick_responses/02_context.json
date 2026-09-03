@@ -1,0 +1,38 @@
+{
+  "language": "sk",
+  "current": {
+    "node_id": "T6",
+    "summary": "Predstavenie hostky: RYT 500, pránájáma, vagus."
+  },
+  "covered": [
+    {
+      "id": "T6",
+      "confidence": 0.86,
+      "evidence": "Som RYT 500 lektorka jogy, venujem sa pránájáme",
+      "t": 34.0
+    }
+  ],
+  "touched": [
+    {
+      "id": "T7",
+      "note": "Spomenuté minulé epizódy"
+    }
+  ],
+  "hot": [
+    {
+      "id": "T7",
+      "score": 0.75,
+      "reason": "Práve padli mená z minulých epizód",
+      "segue": "Ako to zapadá do toho, čo hovoril Peter o pohybe?"
+    }
+  ],
+  "questions": [
+    {
+      "text": "S kým najčastejšie pracuješ?",
+      "node_id": "T6",
+      "why": "Cieľová skupina zatiaľ nezaznela"
+    }
+  ],
+  "mentions": [],
+  "new_topics": []
+}

@@ -1,0 +1,49 @@
+{
+  "language": "sk",
+  "current": {
+    "node_id": "T31",
+    "summary": "Teplo a dych ako kotva pozornosti."
+  },
+  "covered": [
+    {
+      "id": "T31",
+      "confidence": 0.84,
+      "evidence": "Sauna a dych fungujú ako kotva pozornosti",
+      "t": 232.0
+    },
+    {
+      "id": "T999",
+      "confidence": 0.9,
+      "evidence": "toto ID v osnove neexistuje",
+      "t": 232.0
+    }
+  ],
+  "touched": [
+    {
+      "id": "TXX",
+      "note": "tiež neexistuje"
+    }
+  ],
+  "hot": [
+    {
+      "id": "T32",
+      "score": 0.8,
+      "reason": "Hosť sa pýta prakticky pre ITčkarov",
+      "segue": "Ako by to vyzeralo pre niekoho, kto sedí celý deň?"
+    },
+    {
+      "id": "T29",
+      "score": 0.6,
+      "reason": "Stále otvorená téma",
+      "segue": "Vrátime sa ešte k psychedelikám?"
+    }
+  ],
+  "questions": [],
+  "mentions": [],
+  "new_topics": [
+    {
+      "title": "Neurofeedback",
+      "summary": "Hosť porovnáva dychovú prax s neurofeedbackom."
+    }
+  ]
+}

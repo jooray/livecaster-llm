@@ -1,0 +1,50 @@
+{
+  "language": "sk",
+  "current": {
+    "node_id": "T15",
+    "summary": "CO2 tolerancia, retencia po výdychu, úzkosť."
+  },
+  "covered": [
+    {
+      "id": "T15",
+      "confidence": 0.9,
+      "evidence": "retencia po výdychu. Je to najrýchlejší spôsob",
+      "t": 132.0
+    },
+    {
+      "id": "T16",
+      "confidence": 0.82,
+      "evidence": "oxid dusnatý sa tvorí v nosových dutinách",
+      "t": 148.0
+    }
+  ],
+  "touched": [],
+  "hot": [
+    {
+      "id": "T17",
+      "score": 0.66,
+      "reason": "Práve padol hlboký nádych ústami",
+      "segue": "A čo ten opak — hlboký nádych ústami?"
+    }
+  ],
+  "questions": [],
+  "mentions": [
+    {
+      "kind": "concept",
+      "text": "Buteyko",
+      "context": "retencia po výdychu, tolerancia na CO2",
+      "url": null,
+      "needs_link": true,
+      "search_query": "Buteyko method"
+    },
+    {
+      "kind": "concept",
+      "text": "oxid dusnatý",
+      "context": "vzniká v nosových dutinách pri nosovom dýchaní",
+      "url": null,
+      "needs_link": false,
+      "search_query": null
+    }
+  ],
+  "new_topics": []
+}

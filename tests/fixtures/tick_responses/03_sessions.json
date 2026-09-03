@@ -1,0 +1,39 @@
+{
+  "language": "sk",
+  "current": {
+    "node_id": "T9",
+    "summary": "Ako vyzerá jedna session a kde sa Zuzka učila."
+  },
+  "covered": [
+    {
+      "id": "T7",
+      "confidence": 0.8,
+      "evidence": "v minulých epizódach sme mali Petra o pohybe a Elenu",
+      "t": 52.0
+    },
+    {
+      "id": "T9",
+      "confidence": 0.84,
+      "evidence": "Sessions sú väčšinou hodina a pol",
+      "t": 70.0
+    }
+  ],
+  "touched": [],
+  "hot": [
+    {
+      "id": "T11",
+      "score": 0.7,
+      "reason": "Prirodzený prechod na fyziológiu",
+      "segue": "Poďme si to rozobrať fyziologicky — čo sa deje pri výdychu?"
+    }
+  ],
+  "questions": [
+    {
+      "text": "Koľko ľudí u teba vydrží dlhodobo?",
+      "node_id": "T9",
+      "why": "Zaujímavý follow-up na prax"
+    }
+  ],
+  "mentions": [],
+  "new_topics": []
+}

@@ -1,0 +1,88 @@
+{
+  "language": "sk",
+  "nodes": [
+    {
+      "id": "T5",
+      "questions": [
+        "Čo sa v tej session dialo?",
+        "Prečo práve teraz?"
+      ],
+      "triggers": [
+        "session",
+        "minulý týždeň",
+        "spolu sme",
+        "breathwork session"
+      ],
+      "related": [
+        "T43"
+      ]
+    },
+    {
+      "id": "T15",
+      "questions": [
+        "Ako sa trénuje CO2 tolerancia?",
+        "Komu to najviac pomáha?"
+      ],
+      "triggers": [
+        "buteyko",
+        "co2",
+        "oxid uhličitý",
+        "retencia",
+        "zádrž dychu",
+        "breath hold"
+      ],
+      "related": [
+        "T11"
+      ]
+    },
+    {
+      "id": "T29",
+      "questions": [
+        "Sú to komplementárne nástroje?",
+        "Máš klientov, ktorí kombinujú oboje?"
+      ],
+      "triggers": [
+        "psychedeliká",
+        "ayahuasca",
+        "psilocybín",
+        "lsd",
+        "psychedelics",
+        "trip"
+      ],
+      "related": [
+        "T27",
+        "T30"
+      ]
+    },
+    {
+      "id": "T28",
+      "questions": [
+        "V čom sa líšiš od Wim Hof metódy?"
+      ],
+      "triggers": [
+        "wim hof",
+        "holotropné dýchanie",
+        "holotropic",
+        "wim hof method"
+      ],
+      "related": [
+        "T29"
+      ]
+    },
+    {
+      "id": "T16",
+      "questions": [
+        "Prečo nos a nie ústa?"
+      ],
+      "triggers": [
+        "nosové dýchanie",
+        "oxid dusnatý",
+        "nasal breathing",
+        "workout"
+      ],
+      "related": [
+        "T11"
+      ]
+    }
+  ]
+}
