@@ -50,31 +50,40 @@ class ParakeetMLXEngine:
     def __init__(self, model: str = "") -> None:
         self.model_id = model or DEFAULT_MODEL
         self._model = None
+        self._get_logmel = None
 
     def warmup(self) -> None:
         if self._model is not None:
             return
         try:
             from parakeet_mlx import from_pretrained
+            from parakeet_mlx.audio import get_logmel
         except ImportError as exc:  # pragma: no cover - platform dependent
             raise EngineUnavailable(
                 "parakeet-mlx is not installed. Run `uv sync --extra mac` on Apple Silicon."
             ) from exc
         log.info("loading %s", self.model_id)
         self._model = from_pretrained(self.model_id)
+        self._get_logmel = get_logmel
         self.transcribe(np.zeros(16_000, dtype=np.float32), None)
 
     def transcribe(self, audio: np.ndarray, language: str | None) -> STTResult:
         # Parakeet v3 auto-detects among its 25 languages and cannot be forced.
         if self._model is None:
             self.warmup()
-        assert self._model is not None
+        assert self._model is not None and self._get_logmel is not None
+        # `model.transcribe` takes a file path. For an in-memory utterance the array
+        # path is mel spectrogram -> generate, which skips the temp-file round trip.
         try:
             import mlx.core as mx
 
-            result = self._model.transcribe(mx.array(audio.astype(np.float32)))
+            mel = self._get_logmel(mx.array(audio.astype(np.float32)), self._model.preprocessor_config)
+            results = self._model.generate(mel)
         except Exception as exc:  # pragma: no cover - runtime failure path
             raise EngineUnavailable(f"parakeet-mlx failed: {exc}") from exc
+        if not results:
+            return STTResult(text="", language=None)
+        result = results[0]
         text = clean(getattr(result, "text", "") or "")
         words: list[Word] = []
         for sentence in getattr(result, "sentences", []) or []:

@@ -5,10 +5,11 @@ from __future__ import annotations
 import asyncio
 import time
 from dataclasses import dataclass, field
-from typing import Any, Protocol
+from typing import Any
 
 from livecaster.config import Config
 from livecaster.llm.prompts import build_tick_system, build_tick_user
+from livecaster.llm.providers import CompletionClient
 from livecaster.llm.schemas import TickResult
 from livecaster.log import get_logger
 from livecaster.session.models import Patch
@@ -20,11 +21,6 @@ log = get_logger(__name__)
 
 MAX_BACKOFF_S = 120.0
 BASE_BACKOFF_S = 5.0
-
-
-class CompletionClient(Protocol):  # pragma: no cover - structural typing only
-    async def complete_json(self, kind: str, messages: list[dict[str, str]], **kwargs: Any) -> Any: ...
-    async def aclose(self) -> None: ...
 
 
 @dataclass

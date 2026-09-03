@@ -13,7 +13,7 @@ import httpx
 from pydantic import BaseModel, ValidationError
 
 from livecaster.llm.pricing import estimate_cost
-from livecaster.llm.schemas import SCHEMAS, response_format
+from livecaster.llm.schemas import SCHEMAS, response_format, schema_dialect
 from livecaster.log import get_logger
 
 log = get_logger(__name__)
@@ -44,12 +44,21 @@ class CallUsage:
     extra: dict[str, Any] = field(default_factory=dict)
 
 
-def api_key() -> str:
-    key = os.environ.get("VENICE_API_KEY", "").strip()
+#: Venice takes none/low/high. Anything richer narrows to the nearest of those.
+_OPENAI_EFFORTS = {
+    "none": "none",
+    "low": "low",
+    "medium": "low",
+    "high": "high",
+    "xhigh": "high",
+    "max": "high",
+}
+
+
+def api_key(env: str = "VENICE_API_KEY") -> str:
+    key = os.environ.get(env, "").strip()
     if not key:
-        raise MissingAPIKey(
-            "VENICE_API_KEY is not set. Export it or put it in a .env file in the project root."
-        )
+        raise MissingAPIKey(f"{env} is not set. Export it or put it in a .env file in the project root.")
     return key
 
 
@@ -84,17 +93,21 @@ class LLMClient:
         call_log: CallLog | None = None,
         timeout: float = 30.0,
         key: str | None = None,
+        api_key_env: str = "VENICE_API_KEY",
+        venice_extensions: bool = True,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.call_log = call_log or CallLog(None)
         self.timeout = timeout
         self._key = key
+        self.api_key_env = api_key_env
+        self.venice_extensions = venice_extensions
         self._client: httpx.AsyncClient | None = None
 
     @property
     def key(self) -> str:
         if self._key is None:
-            self._key = api_key()
+            self._key = api_key(self.api_key_env)
         return self._key
 
     async def _http(self) -> httpx.AsyncClient:
@@ -135,23 +148,27 @@ class LLMClient:
             raise LLMError(f"unknown schema kind {kind!r}")
         _, model_cls = SCHEMAS[kind]
 
-        venice_params = dict(VENICE_PARAMETERS)
-        if web_search:
-            venice_params["enable_web_search"] = "on"
-            venice_params["enable_web_citations"] = True
-
         body: dict[str, Any] = {
             "model": model,
             "messages": messages,
-            "response_format": response_format(kind),  # type: ignore[arg-type]
+            # Venice proxies Claude models to Anthropic, whose validator accepts a
+            # narrower JSON Schema subset than DeepSeek's.
+            "response_format": response_format(kind, schema_dialect(model)),  # type: ignore[arg-type]
             "temperature": temperature,
             "max_completion_tokens": max_tokens,
-            "venice_parameters": venice_params,
         }
+        if self.venice_extensions:
+            venice_params = dict(VENICE_PARAMETERS)
+            if web_search:
+                venice_params["enable_web_search"] = "on"
+                venice_params["enable_web_citations"] = True
+            body["venice_parameters"] = venice_params
+        elif web_search:
+            log.debug("web search requested but %s has no Venice extensions", self.base_url)
         # "none" must be sent explicitly: omitting the field lets the model reason
         # freely, which on DeepSeek V4 Flash can swallow the entire token budget.
         if effort:
-            body["reasoning_effort"] = effort
+            body["reasoning_effort"] = _OPENAI_EFFORTS.get(effort, effort)
         if cache_key:
             body["prompt_cache_key"] = cache_key
 

@@ -79,7 +79,12 @@ def attach_call_log(client: Any, store: SessionStore) -> None:
     from livecaster.llm.client import CallLog
 
     log_ = getattr(client, "call_log", None)
-    if log_ is not None and log_.path is None:
+    if log_ is None or log_.path is not None:
+        return
+    setter = getattr(client, "set_call_log", None)
+    if setter is not None:  # a ClientPool also updates the clients it already built
+        setter(CallLog(store.llm_log_path))
+    else:
         client.call_log = CallLog(store.llm_log_path)
 
 

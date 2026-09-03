@@ -97,10 +97,8 @@ ten minutes. That is deliberate: it stops the tick loop from arguing with you.
 ## Finishing
 
 1. Press **Finish** (not Ctrl-C). The app flushes the STT queue, runs one last tick, then the
-   wrap-up. The wrap-up thinks hard by default (`reasoning_effort_final = "high"`), which takes
-   **five to eight minutes** on a two-hour episode; the UI shows what it is doing. If you want the
-   notes sooner and can live with plainer titles, start the session with
-   `--set llm.reasoning_effort_final=none` and it takes about two minutes.
+   wrap-up on Sonnet 5 at `reasoning_effort_final = "high"` — **one to three minutes**; the UI
+   shows what it is doing. `--set llm.reasoning_effort_final=none` is faster and plainer.
 2. A card shows the duration, tick count, cost and the output paths.
 
 Outputs land in `sessions/<date>_<slug>/final/`:
@@ -150,12 +148,17 @@ Knobs worth touching, in order of usefulness:
 - `llm.transcript_window_words` — raise it if the model keeps losing the thread.
 - `llm.tick_model` — `deepseek-v4-flash-0731` is half the price of the `-fast` default but takes
   ~38 s per tick instead of ~9 s. Only worth it if you tick rarely.
+- `llm.final_model` — `claude-sonnet-5` (through Venice) writes the show notes. `claude-opus-5`
+  costs twice as much for one call a session; `deepseek-v4-flash-0731` is nearly free and
+  noticeably plainer. `anthropic:claude-sonnet-5` bills Anthropic directly instead.
 - `llm.reasoning_effort_tick` — leave it at `none`. On DeepSeek V4 Flash, `low` spends the whole
   token budget on reasoning and returns an empty answer.
 
 ## Recording the STT self-test samples
 
-`check` uses `tests/fixtures/speech_sk_30s.wav` when it exists. Record it once:
+`check` uses `tests/fixtures/speech_sk_30s.wav`, which is 30 s cut from episode 105 of your own
+podcast (see `tests/fixtures/README.md`). To use your own voice in your own room instead — which
+is the more honest test of show-day conditions — record over it:
 
 ```bash
 ffmpeg -f avfoundation -i ":0" -t 30 -ar 16000 -ac 1 tests/fixtures/speech_sk_30s.wav

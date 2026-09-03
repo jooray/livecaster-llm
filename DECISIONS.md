@@ -82,6 +82,12 @@ tokens, ~950 completion) ≈ **$0.29**, plus ~$0.01 for the wrap-up. Comfortably
 target of SPEC §5, and cheaper than the spec's own estimate because the real prompt is 3.5k
 tokens rather than 8k.
 
+**Those latencies are a snapshot, not a guarantee.** Two hours later the same endpoint took 27 s
+to answer a ten-token prompt, and a replay at `--speed 0` lost several ticks to the 60 s timeout.
+Nothing broke: ticks never overlap, a slow one is skipped rather than queued, transcription keeps
+running, and the UI shows the backoff. Treat 9 s as a good day and the design's tolerance for a
+bad one as the thing that actually matters.
+
 ## D9 — `reasoning_effort: "none"` is sent, never omitted (M2)
 
 Leaving the field out is not the same as `none` on this model: an omitted field produced an 8635
@@ -167,3 +173,62 @@ to `idle` and reaches the UI as a toast instead of only appearing as a 500 in th
   falls back to a silence self-test and prints the ffmpeg command to record one.
 - Parakeet quality in Slovak, Czech and English (checkpoint 2), the remote two-channel test
   (checkpoint 3) and the field test (M8) all need a microphone and a real conversation.
+
+## D17 — Providers are named in the model string, and Claude goes through Venice (M2, M6)
+
+The wrap-up now runs on Sonnet 5, and the host wants that billed against their prepaid Venice
+credits rather than an Anthropic account. Venice proxies the Claude family itself
+(`claude-sonnet-5`, `claude-opus-5`, `claude-fable-5-1`, the GPT family too), so the default
+`final_model = "claude-sonnet-5"` needs no second vendor and no extra dependency.
+
+Provider selection lives in the model string — `provider:model`, bare names going to
+`llm.default_provider`. One knob per call kind, so `--set llm.final_model=anthropic:claude-sonnet-5`
+moves just the wrap-up, and the tick loop is untouched. `llm/providers.py` holds a `ClientPool`
+that is itself a client: it implements the same `complete_json` contract and dispatches on the
+`model` argument, so the reasoner and the wrap-up never learn that more than one vendor exists.
+`llm.providers` in the config maps a name to a wire protocol (`openai` or `anthropic`), a base URL
+and a key variable, which is also how an OpenAI-compatible endpoint gets wired up.
+
+Three things had to bend to make this work:
+
+- **`maxItems` is rejected.** Venice forwards `response_format` straight to Anthropic, whose
+  structured-output validator answers `output_config.format.schema: For 'array' type, property
+  'maxItems' is not supported`. Every other keyword the schemas use — `maxLength`, `enum`,
+  `minimum`, `additionalProperties: false` — is accepted. `schema_for(kind, dialect)` narrows the
+  schema per model family; the array caps are already stated in the prompt and enforced by the
+  reducer, so nothing is lost but a few tokens when a model over-answers.
+- **`temperature` is gone on the 4.6+ Claude family** — a 400 on the direct Anthropic path. The
+  direct client drops it and relies on the schema and the prompt.
+- **`reasoning_effort` vocabularies differ.** Venice takes none/low/high; the Anthropic API takes
+  low through max plus a separate `thinking` switch. The config now accepts all six and each
+  client narrows to what it can send, rather than the config pretending they are the same.
+
+`anthropic` is an optional extra (`uv sync --extra anthropic`), imported lazily, because the
+default path does not need it.
+
+## D18 — `parakeet-mlx` takes a file path, not an array (M4)
+
+SPEC §7.3 says to "use `model.transcribe(audio_array)`". In parakeet-mlx 0.5.2 `transcribe` takes
+a `Path | str` and the array shape raises `TypeError: argument should be a str or an os.PathLike
+object`. The in-memory path is `get_logmel(mx.array(audio), model.preprocessor_config)` then
+`model.generate(mel)`, which also avoids a temp-file round trip per utterance. This would have
+failed on the first real recording; it was only caught by running the model.
+
+## D19 — Checkpoint 2 measured on the host's own podcast (M4)
+
+`tests/fixtures/speech_sk_30s.wav` is 30 s of episode 105 of *Podcast o všeličom*
+(feed: <https://example.com/feed/podcast/>), cut from a 90 s excerpt so it starts on an
+utterance boundary. Provenance and the exact ffmpeg commands are in `tests/fixtures/README.md`.
+
+Parakeet v3 on this machine: **real-time factor 0.10–0.18** against the spec's < 0.3 target, with
+word timestamps. Slovak quality is the regime the spec bet on — topic words land (*sauna,
+ceremoniál, majstrovstvá sveta, Bitcoin*), grammatical endings and proper nouns do not
+("tvojem heku" for *tvojom hacku*, "Jeden sauna Ivan" for *sauna event*, "v pote tváru majíme
+Bitcoin" for *V pote tváre mineme Bitcoin*). Since the outline vocabulary sits in the LLM's
+context, that is survivable — but whether it is good enough is the host's call, and the runbook
+explains how to re-record the sample in their own room.
+
+The Hugging Face downloader restarted rather than resumed four times on this connection, leaving
+2 GB of orphaned `.incomplete` files. The model was finally installed by resuming with
+`curl -C -` and verifying the blob's sha256 against its cache filename before moving it into
+place. The runbook documents `hf download` as the pre-flight step.

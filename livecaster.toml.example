@@ -35,14 +35,21 @@ preroll_ms = 300
 
 [llm]
 base_url = "https://api.venice.ai/api/v1"
+default_provider = "venice"                 # where a model with no `provider:` prefix goes
+
 # -fast costs twice as much per output token but answers in ~9 s instead of ~38 s.
 tick_model = "deepseek-v4-flash-0731-fast"
-final_model = "deepseek-v4-flash-0731"     # deepseek-v4-pro-0813 for a better wrap-up
+# Venice proxies Claude, so Sonnet 5 bills against the same prepaid credits.
+# Prefix a model to send it somewhere else: "anthropic:claude-sonnet-5" (needs
+# `uv sync --extra anthropic` and ANTHROPIC_API_KEY) or "openai:gpt-5".
+final_model = "claude-sonnet-5"
 tick_interval_s = 25
 min_new_words = 25                          # do not tick before this much was said
 burst_words = 120                           # tick immediately past this
 transcript_window_words = 1200
-reasoning_effort_tick = "none"              # none | low | high — see DECISIONS.md (D8)
+# none | low | medium | high | xhigh | max. Venice takes none/low/high and narrows
+# the rest; the Anthropic API takes all six. See DECISIONS.md (D8, D17).
+reasoning_effort_tick = "none"
 reasoning_effort_final = "high"
 temperature = 0.2
 cover_threshold = 0.7                       # confidence needed to strike a topic through
@@ -50,6 +57,23 @@ touch_threshold = 0.4
 heading_cover_threshold = 0.85              # confidence needed to cover a whole section
 manual_lock_minutes = 10                    # after you un-cover an item, the LLM keeps out
 preflight = true                            # one call before the session: questions and triggers
+
+# Each provider: `kind` is the wire protocol, not the vendor. Override a base URL
+# or a key variable here; anything you leave out keeps the built-in default.
+[llm.providers.venice]
+kind = "openai"
+base_url = "https://api.venice.ai/api/v1"
+api_key_env = "VENICE_API_KEY"
+venice_extensions = true    # system-prompt suppression and web-search switches
+
+[llm.providers.anthropic]
+kind = "anthropic"
+api_key_env = "ANTHROPIC_API_KEY"
+
+[llm.providers.openai]
+kind = "openai"
+base_url = "https://api.openai.com/v1"
+api_key_env = "OPENAI_API_KEY"
 
 [wrapup]
 resolve_links = false   # web search for missing URLs; slower and costs more

@@ -9,7 +9,6 @@ dependencies = [
   "uvicorn[standard]>=0.30",
   "pydantic>=2.7",
   "httpx>=0.27",
-  "openai>=1.50",
   "numpy>=1.26",
   "sounddevice>=0.4.7",
   "soundfile>=0.12",
@@ -27,6 +26,9 @@ dependencies = [
 
 [project.optional-dependencies]
 mac = ["parakeet-mlx>=0.3"]
+# Only needed to bill Anthropic directly (`--set llm.final_model=anthropic:claude-sonnet-5`).
+# Claude through Venice needs nothing extra.
+anthropic = ["anthropic>=1.0"]
 # Opt-in: mlx-whisper depends on PyTorch, which the macOS install deliberately avoids.
 # Install it only when you need the Whisper fallback (a language outside Parakeet's 25).
 mac-whisper = ["mlx-whisper>=0.4"]

@@ -173,15 +173,39 @@ Only the outline text, transcript text and derived state go to Venice. Audio and
 stay on the machine. Venice's injected system prompt is disabled and web search is off (except the
 optional link-resolution step in the wrap-up).
 
-A two-hour episode costs about **$0.30**: roughly 290 ticks at ~$0.001 each (96 % of every prompt
-comes back from Venice's cache) plus a cent for the wrap-up. Livecaster ticks with
-`deepseek-v4-flash-0731-fast`, which answers in ~9 s instead of the plain model's ~38 s; the
-wrap-up uses the cheaper plain model, where latency does not matter. `DECISIONS.md` (D8) has the
-measurements. To trade latency back for cost:
+A two-hour episode costs about **$0.37**: roughly 290 ticks at ~$0.001 each (96 % of every prompt
+comes back from Venice's cache) plus ~$0.08 for the wrap-up. Livecaster ticks with
+`deepseek-v4-flash-0731-fast`, which answers in ~9 s instead of the plain model's ~38 s, and wraps
+up on `claude-sonnet-5`, where latency does not matter and the writing does. `DECISIONS.md` (D8,
+D17) has the measurements. To trade quality back for cost:
 
 ```bash
-uv run livecaster run osnova.md --set llm.tick_model=deepseek-v4-flash-0731
+uv run livecaster run osnova.md --set llm.tick_model=deepseek-v4-flash-0731 \
+    --set llm.final_model=deepseek-v4-flash-0731
 ```
+
+## Models and providers
+
+A model is named `provider:model`, or bare to use `llm.default_provider` (Venice). Venice proxies
+the Claude and GPT families itself, so the default configuration bills everything to one set of
+prepaid Venice credits:
+
+| Setting | Default | Notes |
+|---|---|---|
+| `llm.tick_model` | `deepseek-v4-flash-0731-fast` | ~9 s per tick, ~$0.001 each |
+| `llm.final_model` | `claude-sonnet-5` | Sonnet 5 through Venice; ~$0.08 per episode |
+
+To bill Anthropic or OpenAI directly instead, prefix the model and supply that provider's key:
+
+```bash
+uv sync --extra anthropic         # only for the direct Anthropic path
+export ANTHROPIC_API_KEY=...
+uv run livecaster run osnova.md --set llm.final_model=anthropic:claude-sonnet-5
+```
+
+`livecaster check` confirms every configured model exists at the provider it routes to, and prints
+that provider's prices. Add or re-point providers under `[llm.providers.*]` in `livecaster.toml`
+(see [`livecaster.toml.example`](livecaster.toml.example)).
 
 ## Known issues
 

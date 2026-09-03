@@ -53,13 +53,15 @@ def _config(config: Path | None, overrides: list[str] | None) -> Config:
 
 
 def _client(cfg: Config, mock: bool, session_dir: Path | None, fixtures: Path | None = None) -> Any:
-    from livecaster.llm.client import CallLog, LLMClient
+    """A routing client: `provider:model` decides where each call goes."""
+    from livecaster.llm.client import CallLog
     from livecaster.llm.mock import MockLLM
+    from livecaster.llm.providers import ClientPool
 
     call_log = CallLog(session_dir / "llm.jsonl" if session_dir else None)
     if mock:
         return MockLLM(fixtures, call_log=call_log)
-    return LLMClient(cfg.llm.base_url, call_log=call_log, timeout=cfg.llm.tick_timeout_s)
+    return ClientPool(cfg, call_log=call_log)
 
 
 # ---------------------------------------------------------------------------
@@ -466,32 +468,7 @@ async def _check(cfg: Config, run_stt: bool, sample: Path | None) -> bool:
         ok = False
     else:
         console.print(f"key present ({len(key)} chars)")
-        from livecaster.llm.client import LLMClient
-        from livecaster.llm.pricing import price_for, refresh_from_models
-
-        client = LLMClient(cfg.llm.base_url)
-        try:
-            payload = await client.list_models()
-            refresh_from_models(payload)
-            ids = {m.get("id") for m in payload.get("data", [])}
-            table = Table("model", "input $/1M", "cached $/1M", "output $/1M", "available")
-            for name in {cfg.llm.tick_model, cfg.llm.final_model}:
-                p = price_for(name)
-                present = name in ids
-                ok = ok and present
-                table.add_row(
-                    name,
-                    f"{p.input:.4f}",
-                    f"{p.cached_input:.4f}",
-                    f"{p.output:.4f}",
-                    "[green]yes[/green]" if present else "[red]NO[/red]",
-                )
-            console.print(table)
-        except Exception as exc:
-            console.print(f"[red]Venice request failed:[/red] {exc}")
-            ok = False
-        finally:
-            await client.aclose()
+        ok = await _check_models(cfg) and ok
 
     console.rule("Audio devices")
     try:
@@ -539,6 +516,49 @@ async def _check(cfg: Config, run_stt: bool, sample: Path | None) -> bool:
     if run_stt:
         console.rule("STT")
         ok = _check_stt(cfg, sample) and ok
+    return ok
+
+
+async def _check_models(cfg: Config) -> bool:
+    """Confirm every configured model exists at the provider it routes to."""
+    from livecaster.llm.pricing import price_for, refresh_from_models
+    from livecaster.llm.providers import ClientPool, split_model
+
+    pool = ClientPool(cfg)
+    wanted = {"tick": cfg.llm.tick_model, "final": cfg.llm.final_model}
+    by_provider: dict[str, list[tuple[str, str]]] = {}
+    for role, spec in wanted.items():
+        provider, model = split_model(spec, cfg.llm.default_provider)
+        by_provider.setdefault(provider, []).append((role, model))
+
+    ok = True
+    table = Table("role", "provider", "model", "input $/1M", "cached $/1M", "output $/1M", "available")
+    for provider, entries in by_provider.items():
+        try:
+            payload = await pool.list_models(provider)
+            refresh_from_models(payload)
+            ids = {m.get("id") for m in payload.get("data", [])}
+        except Exception as exc:
+            console.print(f"[red]{provider} request failed:[/red] {exc}")
+            ok = False
+            for role, model in entries:
+                table.add_row(role, provider, model, "-", "-", "-", "[red]unknown[/red]")
+            continue
+        for role, model in entries:
+            p = price_for(model)
+            present = model in ids
+            ok = ok and present
+            table.add_row(
+                role,
+                provider,
+                model,
+                f"{p.input:.4f}",
+                f"{p.cached_input:.4f}",
+                f"{p.output:.4f}",
+                "[green]yes[/green]" if present else "[red]NO[/red]",
+            )
+    await pool.aclose()
+    console.print(table)
     return ok
 
 

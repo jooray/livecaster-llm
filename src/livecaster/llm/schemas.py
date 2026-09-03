@@ -404,9 +404,45 @@ SCHEMAS: dict[str, tuple[dict[str, Any], type[BaseModel]]] = {
 }
 
 
-def response_format(name: Literal["tick", "preflight", "final", "links"]) -> dict[str, Any]:
+#: JSON Schema keywords the Anthropic structured-output validator rejects. Venice
+#: forwards `response_format` straight through for its Claude models, so a schema
+#: with `maxItems` comes back as
+#: `output_config.format.schema: For 'array' type, property 'maxItems' is not supported`.
+#: The array caps also live in the prompt and the reducer, so dropping them here
+#: costs nothing but a few extra tokens when a model over-answers.
+ANTHROPIC_UNSUPPORTED_KEYWORDS = frozenset({"maxItems", "minItems"})
+
+#: Model families whose structured output goes through the Anthropic validator,
+#: whether reached directly or proxied by Venice.
+_ANTHROPIC_FAMILIES = ("claude", "opus", "sonnet", "haiku", "fable", "mythos")
+
+
+def schema_dialect(model: str) -> Literal["anthropic", "openai"]:
+    """Which JSON Schema subset a model id accepts."""
+    name = model.rsplit(":", 1)[-1].casefold()
+    return "anthropic" if any(f in name for f in _ANTHROPIC_FAMILIES) else "openai"
+
+
+def _prune(node: Any, drop: frozenset[str]) -> Any:
+    if isinstance(node, dict):
+        return {k: _prune(v, drop) for k, v in node.items() if k not in drop}
+    if isinstance(node, list):
+        return [_prune(v, drop) for v in node]
+    return node
+
+
+def schema_for(name: str, dialect: str = "openai") -> dict[str, Any]:
+    """The schema for one call kind, narrowed to what ``dialect`` accepts."""
     schema, _ = SCHEMAS[name]
+    if dialect == "anthropic":
+        return _prune(schema, ANTHROPIC_UNSUPPORTED_KEYWORDS)
+    return schema
+
+
+def response_format(
+    name: Literal["tick", "preflight", "final", "links"], dialect: str = "openai"
+) -> dict[str, Any]:
     return {
         "type": "json_schema",
-        "json_schema": {"name": name, "strict": True, "schema": schema},
+        "json_schema": {"name": name, "strict": True, "schema": schema_for(name, dialect)},
     }

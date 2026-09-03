@@ -11,6 +11,10 @@ from pydantic import BaseModel, Field
 
 CONFIG_FILENAME = "livecaster.toml"
 
+#: Venice accepts none/low/high; the Anthropic API adds medium/xhigh/max. Each
+#: client narrows an unsupported value to the nearest one it can send.
+ReasoningEffort = Literal["none", "low", "medium", "high", "xhigh", "max"]
+
 
 class ChannelConfig(BaseModel):
     name: str = "Host"
@@ -38,18 +42,49 @@ class STTConfig(BaseModel):
     preroll_ms: int = 300
 
 
+class ProviderConfig(BaseModel):
+    """One LLM vendor. `kind` decides the wire protocol, not the vendor name."""
+
+    kind: Literal["openai", "anthropic"] = "openai"
+    base_url: str = ""
+    api_key_env: str = ""
+    #: Venice-only request fields (system-prompt suppression, web search). Sending
+    #: them to another OpenAI-compatible endpoint is a 400, so it is opt-in.
+    venice_extensions: bool = False
+
+
+def _default_providers() -> dict[str, ProviderConfig]:
+    return {
+        "venice": ProviderConfig(
+            kind="openai",
+            base_url="https://api.venice.ai/api/v1",
+            api_key_env="VENICE_API_KEY",
+            venice_extensions=True,
+        ),
+        "anthropic": ProviderConfig(kind="anthropic", api_key_env="ANTHROPIC_API_KEY"),
+        "openai": ProviderConfig(
+            kind="openai", base_url="https://api.openai.com/v1", api_key_env="OPENAI_API_KEY"
+        ),
+    }
+
+
 class LLMConfig(BaseModel):
     base_url: str = "https://api.venice.ai/api/v1"
+    #: Where a bare model name (one without a `provider:` prefix) is sent.
+    default_provider: str = "venice"
+    providers: dict[str, ProviderConfig] = Field(default_factory=_default_providers)
     # Measured on 2026-09-03: the plain flash model needs ~38 s per tick, the -fast
     # variant ~9 s. See DECISIONS.md (D8).
     tick_model: str = "deepseek-v4-flash-0731-fast"
-    final_model: str = "deepseek-v4-flash-0731"
+    # Sonnet 5 through Venice, so it draws on the same prepaid credits. Prefix a
+    # model with a provider to send it elsewhere: `anthropic:claude-sonnet-5`.
+    final_model: str = "claude-sonnet-5"
     tick_interval_s: float = 25.0
     min_new_words: int = 25
     burst_words: int = 120
     transcript_window_words: int = 1200
-    reasoning_effort_tick: Literal["none", "low", "high"] = "none"
-    reasoning_effort_final: Literal["none", "low", "high"] = "high"
+    reasoning_effort_tick: ReasoningEffort = "none"
+    reasoning_effort_final: ReasoningEffort = "high"
     temperature: float = 0.2
     cover_threshold: float = 0.7
     touch_threshold: float = 0.4
