@@ -424,11 +424,9 @@ kbd {
   border-radius: 6px;
 }
 .result-body code { font-size: 13px; }
-#done-body .primary {
-  margin-top: 12px;
-  border-color: var(--accent);
-  color: var(--accent);
-}
+/* `button.primary` already paints white on the accent; only spacing belongs here.
+   An id + class selector overriding `color` made the label invisible. */
+#done-body .primary { margin-top: 12px; }
 #done-body .warn { color: var(--hot); }
 
 .pill.warn { color: var(--hot); }

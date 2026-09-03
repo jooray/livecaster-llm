@@ -18,6 +18,11 @@ class DeviceInfo:
     is_default: bool = False
     hostapi: str = ""
     max_output_channels: int = 0
+    #: True when a device of this name also exists as an output. CoreAudio splits
+    #: a Bluetooth headset into two entries — "WH-1000XM6" in 1 out 0 at 16 kHz,
+    #: and "WH-1000XM6" in 0 out 2 at 44.1 kHz — so this is how the pair is
+    #: recognised; the input side alone looks like any other narrow-band mic.
+    has_output_twin: bool = False
 
     @property
     def is_headset_mode(self) -> bool:
@@ -27,9 +32,8 @@ class DeviceInfo:
         link — which is why the headphones suddenly sound like a phone call. It
         costs nothing for speech recognition and everything for what you hear.
         """
-        return (
-            self.max_input_channels > 0 and self.max_output_channels > 0 and self.default_samplerate <= 24_000
-        )
+        both_ways = self.max_output_channels > 0 or self.has_output_twin
+        return self.max_input_channels > 0 and both_ways and self.default_samplerate <= 24_000
 
 
 def list_devices() -> list[DeviceInfo]:
@@ -41,8 +45,10 @@ def list_devices() -> list[DeviceInfo]:
     except Exception:  # pragma: no cover
         pass
     hostapis = sd.query_hostapis()
+    devices = list(sd.query_devices())
+    outputs = {str(d["name"]) for d in devices if int(d["max_output_channels"]) > 0}
     out: list[DeviceInfo] = []
-    for i, d in enumerate(sd.query_devices()):
+    for i, d in enumerate(devices):
         if int(d["max_input_channels"]) <= 0:
             continue
         api = ""
@@ -59,6 +65,7 @@ def list_devices() -> list[DeviceInfo]:
                 is_default=(i == default_in),
                 hostapi=api,
                 max_output_channels=int(d["max_output_channels"]),
+                has_output_twin=str(d["name"]) in outputs,
             )
         )
     return out
