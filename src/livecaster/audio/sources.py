@@ -94,12 +94,15 @@ class DeviceSource:
         channel_index: int | None = None,
         sample_rate: int | None = None,
         clock: Callable[[], float] | None = None,
+        on_native: Callable[[np.ndarray, int], None] | None = None,
     ) -> None:
         self.name = name
         self.device_spec = device
         self.channel_index = channel_index
         self.requested_rate = sample_rate
         self.clock = clock or time.monotonic
+        #: Called with the mono block *before* resampling, for `record_native`.
+        self.on_native = on_native
         self._stream = None
         self._slicer: _FrameSlicer | None = None
         self._resampler: _Resampler | None = None
@@ -127,6 +130,8 @@ class DeviceSource:
             if status:
                 log.debug("%s: portaudio status %s", self.name, status)
             mono = _to_mono(np.asarray(indata, dtype=np.float32), self.channel_index)
+            if self.on_native is not None:
+                self.on_native(mono.copy(), self.rate)
             assert self._resampler is not None and self._slicer is not None
             self._slicer.push(self._resampler(mono), self.clock())
 
@@ -379,13 +384,14 @@ def make_source(
     clock: Callable[[], float] | None = None,
     speed: float = 1.0,
     on_finished: Callable[[], None] | None = None,
+    on_native: Callable[[np.ndarray, int], None] | None = None,
 ) -> AudioSource:
     """Build a source from a config string: ``device:…``, ``audiotee:…`` or ``file:…``."""
     scheme, _, rest = spec.partition(":")
     scheme = scheme.strip().lower()
     rest = rest.strip()
     if scheme == "device":
-        return DeviceSource(name, rest or None, channel_index=channel_index, clock=clock)
+        return DeviceSource(name, rest or None, channel_index=channel_index, clock=clock, on_native=on_native)
     if scheme == "audiotee":
         return AudioTeeSource(name, rest, clock=clock)
     if scheme == "file":

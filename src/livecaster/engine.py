@@ -51,15 +51,19 @@ class ChannelPipeline:
         *,
         speed: float = 1.0,
         on_finished: Callable[[], None] | None = None,
+        native_recorder: WavRecorder | None = None,
     ) -> None:
         self.cfg = cfg
         self.config = config
         self.clock = clock
         self.on_utterance = on_utterance
         self.recorder = recorder
+        self.native_recorder = native_recorder
         self.frames: queue.Queue[tuple[np.ndarray, float] | None] = queue.Queue(
             maxsize=int(MAX_BUFFER_S * 16_000 / 512)
         )
+        self.native_frames: queue.Queue[tuple[np.ndarray, int]] = queue.Queue(maxsize=2000)
+        self.dropped_native = 0
         self.level_db = -90.0
         self._thread: threading.Thread | None = None
         self._stop = threading.Event()
@@ -81,7 +85,15 @@ class ChannelPipeline:
             clock=clock,
             speed=speed,
             on_finished=on_finished,
+            on_native=self._on_native if native_recorder is not None else None,
         )
+
+    def _on_native(self, block: np.ndarray, rate: int) -> None:
+        """Runs on the PortAudio thread, so only enqueue — the channel thread writes."""
+        try:
+            self.native_frames.put_nowait((block, rate))
+        except queue.Full:
+            self.dropped_native += 1
 
     # --- capture -----------------------------------------------------------
 
@@ -115,6 +127,8 @@ class ChannelPipeline:
             self._thread = None
         if self.recorder is not None:
             self.recorder.close()
+        if self.native_recorder is not None:
+            self.native_recorder.close()
 
     def _run(self) -> None:
         acc = np.zeros(0, dtype=np.float32)
@@ -126,6 +140,7 @@ class ChannelPipeline:
             if item is None:
                 break
             frame, t = item
+            self._drain_native()
             if self._paused.is_set():
                 continue
             if self.recorder is not None:
@@ -137,8 +152,23 @@ class ChannelPipeline:
                 acc = np.zeros(0, dtype=np.float32)
             for utt in self.segmenter.push(frame, t):
                 self.on_utterance(utt)
+        self._drain_native()
         for utt in self.segmenter.flush():
             self.on_utterance(utt)
+
+    def _drain_native(self) -> None:
+        recorder = self.native_recorder
+        if recorder is None:
+            return
+        while True:
+            try:
+                block, rate = self.native_frames.get_nowait()
+            except queue.Empty:
+                return
+            if self._paused.is_set():
+                continue
+            recorder.ensure_open(rate)
+            recorder.write(block)
 
 
 class Engine:
@@ -211,9 +241,13 @@ class Engine:
         audio_dir = self.store.dir / "audio"
         for cfg in session.channels:
             recorder = None
-            if self.config.audio.record and cfg.record and not cfg.source.startswith("file:"):
+            native = None
+            record_this = self.config.audio.record and cfg.record and not cfg.source.startswith("file:")
+            if record_this:
                 recorder = WavRecorder(WavRecorder.unique_path(audio_dir, cfg.name.lower()))
                 recorder.open()
+                if self.config.audio.record_native and cfg.source.startswith("device:"):
+                    native = WavRecorder(WavRecorder.unique_path(audio_dir, f"{cfg.name.lower()}-native"))
             pipeline = ChannelPipeline(
                 cfg,
                 self.config,
@@ -222,6 +256,7 @@ class Engine:
                 recorder,
                 speed=self.replay_speed,
                 on_finished=self._on_source_finished,
+                native_recorder=native,
             )
             self.channels.append(pipeline)
         try:

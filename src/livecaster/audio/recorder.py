@@ -39,6 +39,15 @@ class WavRecorder:
             str(self.path), mode="w", samplerate=self.samplerate, channels=1, subtype="PCM_16"
         )
 
+    def ensure_open(self, samplerate: int | None = None) -> None:
+        """Open on first write, once the real sample rate of the source is known."""
+        with self._lock:
+            if self._file is not None:
+                return
+        if samplerate:
+            self.samplerate = samplerate
+        self.open()
+
     def write(self, frame: np.ndarray) -> None:
         if self._file is None:
             return

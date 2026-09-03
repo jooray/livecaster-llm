@@ -174,3 +174,14 @@ def test_file_source_reports_an_undecodable_file(tmp_path: Path):
     source = FileSource("Host", path, speed=0.0)
     with pytest.raises(RuntimeError, match="cannot decode"):
         source.start(lambda frame, t: None)
+
+
+def test_recorder_ensure_open_takes_the_real_rate(tmp_path: Path):
+    recorder = WavRecorder(tmp_path / "native.wav", samplerate=16_000)
+    recorder.ensure_open(48_000)
+    recorder.ensure_open(8_000)  # already open, rate stays
+    recorder.write(np.full(4800, 0.1, dtype=np.float32))
+    recorder.close()
+    audio, rate = sf.read(str(tmp_path / "native.wav"))
+    assert rate == 48_000
+    assert len(audio) == 4800

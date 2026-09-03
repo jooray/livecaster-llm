@@ -382,3 +382,27 @@ async def test_duration_tracks_the_clock_while_running(store, config: Config, fi
     assert store.session.duration_s >= 600.0
     assert engine.transcript.duration() == 10.0
     await engine.shutdown()
+
+
+def test_native_recording_writes_the_device_rate_stream(tmp_path: Path, config: Config):
+    """`record_native` keeps the untouched stream next to the 16 kHz one."""
+    from livecaster.audio.recorder import WavRecorder
+
+    native = WavRecorder(tmp_path / "host-native.wav")
+    pipeline = ChannelPipeline(
+        ChannelConfig(name="Host", source="file:/dev/null", record=True),
+        config,
+        lambda: 0.0,
+        lambda u: None,
+        None,
+        native_recorder=native,
+    )
+    block = np.full(4800, 0.2, dtype=np.float32)
+    pipeline._on_native(block, 48_000)
+    pipeline._on_native(block, 48_000)
+    pipeline._drain_native()
+    native.close()
+    audio, rate = sf.read(str(tmp_path / "host-native.wav"))
+    assert rate == 48_000
+    assert len(audio) == 9600
+    assert pipeline.dropped_native == 0
