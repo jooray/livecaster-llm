@@ -578,11 +578,22 @@ def _check_stt(cfg: Config, sample: Path | None) -> bool:
     from livecaster.stt.registry import select_engine
 
     try:
-        engine = select_engine(cfg.stt.engine, cfg.stt.model, cfg.stt.language)
+        engine = select_engine(cfg.stt.engine, cfg.stt.model, cfg.stt.language, cfg.stt.cpu_threads)
     except Exception as exc:
         console.print(f"[red]engine selection failed:[/red] {exc}")
         return False
     console.print(f"engine: [bold]{engine.name}[/bold]")
+    lang = cfg.stt.language
+    if lang == "auto":
+        console.print("language: auto — the engine decides, per utterance")
+    elif engine.can_force_language:
+        console.print(f"language: [bold]{lang}[/bold], forced")
+    else:
+        console.print(
+            f"[yellow]language: {lang} is a hint, not a lock[/yellow] — {engine.name} detects the "
+            "language itself. Lines in the wrong alphabet are dropped; wrong-but-plausible ones "
+            "are not. `--set stt.engine=faster-whisper` forces it, at ~15 s per utterance."
+        )
     started = time.monotonic()
     try:
         engine.warmup()
