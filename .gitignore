@@ -13,3 +13,6 @@ helpers/audiotee/src/
 .DS_Store
 uv.lock.bak
 livecaster.toml
+
+# Working outlines are personal: episode plans, guest notes, private context.
+outlines/

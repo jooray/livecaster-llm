@@ -4,8 +4,8 @@ Everything you need on show day, in the order you need it. Nothing here requires
 
 ## The day before
 
-1. `uv sync --extra mac` (or `--extra linux`) — picks up any dependency changes.
-2. `uv run livecaster check` — on a fresh machine this downloads about 2.4 GB of Parakeet
+1. `uv sync --extra mac` (or `--extra linux`), which picks up any dependency changes.
+2. `uv run livecaster check`. On a fresh machine this downloads about 2.4 GB of Parakeet
    weights. Do not leave it for five minutes before the recording.
 
    On a flaky connection the Hugging Face downloader starts over instead of resuming, leaving
@@ -34,7 +34,7 @@ Checklist:
 - [ ] Device names in `livecaster.toml` match what `devices` prints. macOS renames devices when
       you plug things in differently.
 - [ ] **No device is flagged "headset mode".** A Bluetooth headset used as a microphone drops the
-      whole link to 16 kHz mono handsfree — the headphones start to sound like a phone call and
+      whole link to 16 kHz mono handsfree. The headphones start to sound like a phone call and
       the transcript gets noticeably worse. A wired or USB microphone is the fix.
 - [ ] **Headphones on.** In remote mode, speakers put the guest's voice back into your microphone;
       the cross-talk dedupe catches most of it but not all.
@@ -44,7 +44,7 @@ Checklist:
 ## Starting
 
 ```bash
-uv run livecaster run osnova.md --mode remote     # or --mode live
+uv run livecaster run outlines/osnova.md --mode remote     # or --mode live
 ```
 
 The UI opens at <http://127.0.0.1:8765/>. Set `ui.host = "0.0.0.0"` to read it from a tablet.
@@ -64,7 +64,7 @@ has trigger phrases when you begin.
 | `j` / `k` | move the selection |
 | `c` | mark the selected item covered (or un-cover it) |
 | `x` | skip the selected item |
-| `p` | pin it — it stays at the top of **Next** until you cover it |
+| `p` | pin it, so it stays at the top of **Next** until you cover it |
 | `1` `2` `3` | jump to the hot item with that rank |
 | `m` | sync mark |
 | `t` | show the transcript panel |
@@ -74,20 +74,20 @@ has trigger phrases when you begin.
 
 **The surface is meant to be glanced at, not read.** **Now** is one line; **Next** is three
 labels of at most five words. The model's reason and the segue it suggests are hidden until you
-click an item — or press `d`, which opens everything at once. If you find yourself reading
+click an item, or press `d`, which opens everything at once. If you find yourself reading
 paragraphs mid-sentence, press `d` again.
 
 What the map shows:
 
-- **struck through** — covered, with the time it happened
-- **dotted underline ◐** — touched, mentioned in passing
-- **orange bar with ① ② ③** — hot right now; select it or press `d` for the reason and a segue
-- **faint tint** — the fast lane heard a trigger word; a hint, not a state
-- **⏭** — you skipped it
-- `3/7` next to a heading — how much of that section is done
+- **struck through**: covered, with the time it happened
+- **dotted underline ◐**: touched, mentioned in passing
+- **orange bar with ① ② ③**: hot right now; select it or press `d` for the reason and a segue
+- **faint tint**: the fast lane heard a trigger word, which is a hint rather than a state
+- **⏭**: you skipped it
+- `3/7` next to a heading: how much of that section is done
 
 The app never scrolls for you. When hot items are off-screen, the edge indicator says
-"▲ 2 hot" — click it to jump.
+"▲ 2 hot". Click it to jump.
 
 If you un-cover something the model covered too eagerly, the model is locked out of that item for
 ten minutes. That is deliberate: it stops the tick loop from arguing with you.
@@ -98,10 +98,10 @@ ten minutes. That is deliberate: it stops the tick loop from arguing with you.
 |---|---|
 | `LLM error` in the top bar | Nothing. Transcription keeps running and ticks resume by themselves (5 s → 120 s backoff). |
 | STT queue climbing | You are on a slow machine with two channels. Nothing to do live; the queue drains at the end. |
-| Transcript stopped | Check the level meters. If a meter is dead, the device changed — **Pause**, fix it, **Resume**. |
+| Transcript stopped | Check the level meters. If a meter is dead, the device changed. **Pause**, fix it, **Resume**. |
 | Wrong topic went hot | Ignore it, or press `x` to skip the item so it stops coming back. |
-| The app crashed | `uv run livecaster run osnova.md --resume sessions/<dir>` — everything except the utterance in flight is on disk. The clock, the transcript and every mark come back. |
-| The transcript is in the wrong language | Click the 🌐 pill and pick one. It applies to the next utterance. With Parakeet this fixes the notes and drops wrong-alphabet lines but cannot force the words themselves — that needs a better microphone, or `stt.engine=whisper-mlx` (2.6 s per utterance, still fine live). |
+| The app crashed | `uv run livecaster run outlines/osnova.md --resume sessions/<dir>`. Everything except the utterance in flight is on disk. The clock, the transcript and every mark come back. |
+| The transcript is in the wrong language | Click the 🌐 pill and pick one. It applies to the next utterance. With Parakeet this fixes the notes and drops wrong-alphabet lines but cannot force the words themselves. That needs a better microphone, or `stt.engine=whisper-mlx` (2.6 s per utterance, still fine live). |
 | The headphones sound like a phone call | Their microphone is open, so macOS switched the Bluetooth link to 16 kHz handsfree. That is macOS. Use a wired or USB mic and keep the headphones for listening. |
 | You pressed Finish too early | Press **Record again**. The clock and every mark continue, and the wrap-up re-runs over the whole thing at the end. |
 | You edited the outline mid-show | It reloads within two seconds and keeps every status whose line did not change. |
@@ -109,11 +109,11 @@ ten minutes. That is deliberate: it stops the tick loop from arguing with you.
 ## Finishing
 
 1. Press **Finish** (not Ctrl-C). The app flushes the STT queue, runs one last tick, then the
-   wrap-up on Sonnet 5 at `reasoning_effort_final = "high"` — **one to three minutes**; the UI
+   wrap-up on Sonnet 5 at `reasoning_effort_final = "high"`, which takes **one to three minutes**. The UI
    shows what it is doing. `--set llm.reasoning_effort_final=none` is faster and plainer.
 2. A card shows the duration, tick count and cost, and **Open show notes** switches to the
    **Result** tab, where the notes, the annotated outline, the transcript and the SRT are rendered
-   in the app — no need to go looking on disk. The tab stays after a reload or a `--resume`.
+   in the app, without going looking on disk. The tab stays after a reload or a `--resume`.
 
 Outputs land in `sessions/<date>_<slug>/final/`:
 
@@ -136,7 +136,7 @@ uv run livecaster wrapup sessions/2026-08-31_demo --model deepseek-v4-pro-0813
 # Look up the missing URLs (uses web search; slower, costs more)
 uv run livecaster wrapup sessions/2026-08-31_demo --resolve-links
 
-# Re-render the Markdown after editing final_analysis.json by hand — no LLM calls
+# Re-render the Markdown after editing final_analysis.json by hand (no LLM calls)
 uv run livecaster export sessions/2026-08-31_demo
 ```
 
@@ -151,28 +151,27 @@ against its own recorded transcript:
 
 ```bash
 uv run livecaster replay --session sessions/2026-08-31_demo \
-    --outline osnova.md --mock-llm --speed 0 \
+    --outline demo/demo.md --mock-llm --speed 0 \
     --set llm.cover_threshold=0.8
 ```
 
 Knobs worth touching, in order of usefulness:
 
-- `llm.cover_threshold` — raise it if items get struck through too eagerly.
-- `llm.tick_interval_s` — lower it for a fast-moving conversation, at proportional cost.
-- `llm.transcript_window_words` — raise it if the model keeps losing the thread.
-- `llm.tick_model` — `deepseek-v4-flash-0731` is half the price of the `-fast` default but takes
+- `llm.cover_threshold`: raise it if items get struck through too eagerly.
+- `llm.tick_interval_s`: lower it for a fast-moving conversation, at proportional cost.
+- `llm.transcript_window_words`: raise it if the model keeps losing the thread.
+- `llm.tick_model`: `deepseek-v4-flash-0731` is half the price of the `-fast` default but takes
   ~38 s per tick instead of ~9 s. Only worth it if you tick rarely.
-- `llm.final_model` — `claude-sonnet-5` (through Venice) writes the show notes. `claude-opus-5`
+- `llm.final_model`: `claude-sonnet-5` (through Venice) writes the show notes. `claude-opus-5`
   costs twice as much for one call a session; `deepseek-v4-flash-0731` is nearly free and
   noticeably plainer. `anthropic:claude-sonnet-5` bills Anthropic directly instead.
-- `llm.reasoning_effort_tick` — leave it at `none`. On DeepSeek V4 Flash, `low` spends the whole
+- `llm.reasoning_effort_tick`: leave it at `none`. On DeepSeek V4 Flash, `low` spends the whole
   token budget on reasoning and returns an empty answer.
 
 ## Recording the STT self-test samples
 
-`check` uses `tests/fixtures/speech_sk_30s.wav`, which is 30 s cut from episode 105 of your own
-podcast (see `tests/fixtures/README.md`). To use your own voice in your own room instead — which
-is the more honest test of show-day conditions — record over it:
+No sample ships with the repository, so `check` falls back to a silence self-test until you record
+one. Your own voice in your own room is the honest test of show-day conditions:
 
 ```bash
 ffmpeg -f avfoundation -i ":0" -t 30 -ar 16000 -ac 1 tests/fixtures/speech_sk_30s.wav

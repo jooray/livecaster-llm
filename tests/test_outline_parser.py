@@ -71,15 +71,15 @@ def test_section_six_paragraphs_are_separate_coverable_nodes(outline):
     paragraphs = [n for n in outline.descendants_of(heading.id) if n.kind == "paragraph"]
     assert len(paragraphs) == 6
     assert all(p.coverable for p in paragraphs)
-    assert paragraphs[0].text.startswith("Počas dychového cvičenia")
+    assert paragraphs[0].text.startswith("Prvé cvičenie bolo intenzívnejšie")
 
 
 def test_ansi_escape_is_stripped_but_text_survives(outline):
-    node = next(n for n in outline.nodes if n.text.startswith("Počas dychového"))
+    node = next(n for n in outline.nodes if n.text.startswith("Prvé cvičenie"))
     # The source carries a real ESC sequence (ESC [118;1:3u), which is removed.
     assert "\x1b" not in node.text
     assert "118;1:3u" not in node.text
-    assert "Mal som pocit ako keby som" in node.text
+    assert "intenzívnejšie, než som čakal" in node.text
 
 
 def test_links_are_extracted():

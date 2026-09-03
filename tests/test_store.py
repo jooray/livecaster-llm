@@ -95,7 +95,7 @@ def test_events_are_logged(store):
 
 @pytest.mark.parametrize(
     "value,expected",
-    [("Osnova podcastu", "osnova-podcastu"), ("Podcast o všeličom", "reci-o-zivote"), ("", "session")],
+    [("Osnova podcastu", "osnova-podcastu"), ("Podcast o všeličom", "podcast-o-vselicom"), ("", "session")],
 )
 def test_slugify(value: str, expected: str):
     assert slugify(value) == expected

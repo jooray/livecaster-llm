@@ -262,7 +262,12 @@ def test_mentions_dedupe_and_merge(session, outline, cfg):
 
 def test_mention_with_a_url_is_not_flagged(session, outline, cfg):
     m = TickMention(
-        kind="link", text="dychova-praca.example", context="", url="https://dychova-praca.example", needs_link=True, search_query=None
+        kind="link",
+        text="dychova-praca.example",
+        context="",
+        url="https://dychova-praca.example",
+        needs_link=True,
+        search_query=None,
     )
     apply_tick(session, tick(mentions=[m]), 1.0, outline, cfg)
     assert session.mentions[0].needs_link is False

@@ -51,7 +51,7 @@ Livecaster runs from a WAV file or from a previously saved transcript, at real t
 ### A session, end to end
 
 1. Host writes `osnova.md` (see `osnova.md` in this repository for a real example: Slovak, mixed headings, nested bullets, bold question lines, long prose paragraphs).
-2. `livecaster run osnova.md --mode remote`. The app parses the outline, assigns IDs, starts the web server, opens the UI, and runs an optional **pre-flight** LLM pass that suggests 2–3 questions per topic, trigger phrases, and cross-links between topics.
+2. `livecaster run outlines/osnova.md --mode remote`. The app parses the outline, assigns IDs, starts the web server, opens the UI, and runs an optional **pre-flight** LLM pass that suggests 2–3 questions per topic, trigger phrases, and cross-links between topics.
 3. Host checks input levels, presses **Start**. Transcription begins; the transcript panel fills; every ~25 s a tick updates the map.
 4. Guest mentions psychedelics while the conversation is in the physiology section. The item "Psychedeliká vs. dych" under section 3 lights up with "Hosť práve spomenul ayahuascu — sekcia 3 sa na to pýta priamo" and a one-sentence segue. The host may jump there or ignore it.
 5. Items get struck through as they are covered. The host can override any state with a click or a key.
@@ -427,7 +427,7 @@ UI implementation: `ui/index.html`, `ui/app.js`, `ui/styles.css`, vendored `mark
 ## 8. Session directory
 
 ```
-sessions/2026-08-31_demo/
+sessions/2026-08-31_demo-dychom/
   session.json          # Session snapshot (state), rewritten ≤ 1 s after any change (atomic rename)
   outline.md            # copy of the outline at session start (+ outline.<n>.md on each reload)
   transcript.jsonl      # one Segment per line, append-only

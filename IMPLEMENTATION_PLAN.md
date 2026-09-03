@@ -119,7 +119,7 @@ Tasks
 7. `session/reducer.py`: `apply_tick(session, result, now) -> Patch` implementing SPEC §9.3 exactly; `apply_manual(session, action) -> Patch`; `apply_preflight`.
 8. `llm/reasoner.py`: scheduler task (FR-17) with backoff; `tick_now()`; status object for the UI.
 9. `llm/preflight.py`: single call at session start when `llm.preflight` is true; stores triggers/questions/related on the session.
-10. `replay.py` (transcript mode): reads a `transcript.jsonl` and feeds segments to the store at `speed ×` real time (`speed=0` = instant), running the reasoner. `livecaster replay --transcript tests/fixtures/transcript_sk.jsonl --outline osnova.md --mock-llm --speed 0` prints each patch as a compact diff and writes a session directory.
+10. `replay.py` (transcript mode): reads a `transcript.jsonl` and feeds segments to the store at `speed ×` real time (`speed=0` = instant), running the reasoner. `livecaster replay --transcript tests/fixtures/transcript_sk.jsonl --outline demo/demo.md --mock-llm --speed 0` prints each patch as a compact diff and writes a session directory.
 11. Fixtures: write `tests/fixtures/transcript_sk.jsonl` (≈60 Slovak segments, Host/Guest, walking through sections 0, 1 and 3 out of order, mentioning Wim Hof, Buteyko, ayahuasca, Kryptocamp, and one promise "pošleme link do popisu"), `transcript_sk_singlemic.jsonl` (same, no speaker labels), `transcript_en.jsonl` with a small `outline_en.md`, `transcript_cs.jsonl`, and `tick_responses/` (at least 6 files: normal progression, one invalid JSON, one with an unknown ID, one that re-covers a manually uncovered node inside the lock window, one with a heading covered at 0.9, one with hot items only).
 12. `tests/integration/test_venice_smoke.py`: real call with the fixture transcript's first 20 segments; asserts valid JSON, `language == "sk"`, at least one hot or covered entry, and that a second identical-prefix call reports `cached_tokens > 0` (mark this last assertion as expected-failure if Venice does not report it for this model; record the observation in `DECISIONS.md`).
 
@@ -136,7 +136,7 @@ Tasks
 2. `session/fastlane.py` (FR-16) with tests on the Slovak fixture (diacritics-insensitive matching: "ayahuasca" and "psychedelika" warm T-psychedeliká; nothing warms on a filler sentence).
 3. UI (`ui/`): implement Appendix C. Requirements: keyed rendering by node ID; state classes `untouched|warm|touched|hot|covered|skipped|pinned|current|selected`; heading coverage fraction; hot rank keycaps and reason/segue lines; edge indicators for off-screen hot items; side panel tabs Now / Questions / Mentions / Transcript / New topics; top bar with meters, statuses, cost, buttons; keyboard map (FR-25); dark/light toggle stored in `localStorage`; min font 18 px; reconnecting WebSocket with exponential backoff; reload on build ID mismatch; toasts.
 4. Wire manual actions to the reducer and broadcast patches. Wire `control` actions (start/pause/resume/finish stubs; finish calls the wrap-up in M6).
-5. Replay drives the UI: `livecaster replay --transcript … --outline osnova.md --mock-llm --speed 4` opens the browser and the map fills in over ~1 minute.
+5. Replay drives the UI: `livecaster replay --transcript … --outline demo/demo.md --mock-llm --speed 4` opens the browser and the map fills in over ~1 minute.
 6. `test_protocol.py` (message validation), a Playwright-free smoke test using `httpx` against the ASGI app (`/`, `/api/state`, WebSocket hello via `websockets` client).
 
 Acceptance
@@ -153,12 +153,12 @@ Tasks
 4. `audio/recorder.py`: per-channel WAV writer (FR-09), flushed each second, closed on stop, appended with a numeric suffix on resume.
 5. `stt/base.py`, `stt/registry.py` (auto-selection rules from SPEC §7.3), `stt/parakeet_mlx.py`, `stt/whisper_mlx.py`, `stt/postprocess.py` (filler and hallucination filters, tests). STT worker thread with a queue; results marshalled to the asyncio loop; queue depth and last latency exposed for `status`.
 6. `livecaster check`: STT self-test on `tests/fixtures/speech_sk_30s.wav` (the human records this file; until then use any short Slovak or English WAV and note it) printing the transcript and real-time factor; audio device sanity (opens the configured device for 1 s).
-7. `livecaster run osnova.md --mode live` end to end with one channel: Start captures, segments flow into the UI, ticks run against Venice, `Pause` stops capture without ending the session, `Finish` stops everything (wrap-up arrives in M6).
+7. `livecaster run outlines/osnova.md --mode live` end to end with one channel: Start captures, segments flow into the UI, ticks run against Venice, `Pause` stops capture without ending the session, `Finish` stops everything (wrap-up arrives in M6).
 8. Level meters (FR-08) from RMS per 100 ms block, sent in `status`.
 9. `replay --wav file.wav` path through `FileSource` (real STT, real or mock LLM).
 
 Acceptance
-- `livecaster replay --wav tests/fixtures/speech_sk_30s.wav --outline osnova.md --mock-llm --speed 0` yields a transcript whose text a Slovak reader recognizes as the recording; real-time factor printed and < 0.3 on M1 with Parakeet.
+- `livecaster replay --wav your-sample.wav --outline demo/demo.md --mock-llm --speed 0` yields a transcript whose text a Slovak reader recognizes as the recording; real-time factor printed and < 0.3 on M1 with Parakeet.
 - Live mode: speaking a sentence shows it in the transcript panel within 2 s of stopping; the WAV backup plays back correctly; a Venice outage (unplug the network) shows an LLM error status while transcription keeps running, and ticks resume when the network returns.
 - **Checkpoint 2:** the human reads a 5-minute live test transcript in Slovak and a shorter one in English (Czech if a speaker is available) and confirms Parakeet quality. Parakeet is the confirmed default; `whisper-mlx` stays a fallback that is selected only per language or on explicit configuration. Record observations.
 

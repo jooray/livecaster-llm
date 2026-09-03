@@ -12,20 +12,29 @@ or explicit link TODOs.
 
 **Your outline file is never modified. Audio never leaves the machine.**
 
-See [`SPEC.md`](SPEC.md) for the full specification and [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md)
-for the milestone plan.
+## Demo
+
+[![Livecaster demo](https://img.youtube.com/vi/rDJfGJWyTkM/hqdefault.jpg)](https://youtu.be/rDJfGJWyTkM)
+
+A walkthrough recorded with Livecaster running on itself: <https://youtu.be/rDJfGJWyTkM>
+(Slovak; an English version is planned). The outline it follows is
+[`demo/demo-sk.md`](demo/demo-sk.md), with an English translation in
+[`demo/demo.md`](demo/demo.md).
+
+See [`SPEC.md`](SPEC.md) for the full specification, [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md)
+for the milestone plan, and [`llms.txt`](llms.txt) if you are an agent setting this up.
 
 ## Install
 
 Requires Python 3.12 (pinned) and [uv](https://docs.astral.sh/uv/).
 
 ```bash
-git clone <this repo> && cd livecaster-llm
+git clone https://github.com/jooray/livecaster-llm && cd livecaster-llm
 
-# macOS (Apple Silicon) — Parakeet via MLX
+# macOS (Apple Silicon): Parakeet via MLX
 uv sync --extra mac
 
-# Linux — Parakeet via onnxruntime
+# Linux: Parakeet via onnxruntime
 uv sync --extra linux
 # ...or with an NVIDIA GPU
 uv sync --extra cuda
@@ -52,9 +61,15 @@ restarting.
 
 ## First run
 
+Write an outline, or start from one of the demo outlines:
+
 ```bash
-uv run livecaster run osnova.md --mode live
+mkdir -p outlines && cp demo/demo.md outlines/my-episode.md
+uv run livecaster run outlines/my-episode.md --mode live
 ```
+
+`outlines/` is git-ignored, because an episode plan usually has guest notes and private context in
+it. Any Markdown works: headings, bullets, nested bullets, `Question:` lines, whole paragraphs.
 
 This parses the outline, starts the server on <http://127.0.0.1:8765>, opens the UI, and (unless
 `--no-preflight`) runs one LLM pass that suggests questions and trigger phrases per topic.
@@ -74,23 +89,23 @@ uv sync --extra mac --extra mac-whisper   # only if you need a language Parakeet
 ```bash
 # Replay a transcript through the whole pipeline with canned LLM answers
 uv run livecaster replay --transcript tests/fixtures/transcript_sk.jsonl \
-    --outline osnova.md --mock-llm --speed 0
+    --outline demo/demo.md --mock-llm --speed 0
 
 # Replay at 4x with the UI open
 uv run livecaster replay --transcript tests/fixtures/transcript_sk.jsonl \
-    --outline osnova.md --mock-llm --speed 4 --serve
+    --outline demo/demo.md --mock-llm --speed 4 --serve
 
 # Replay a WAV file through real STT
-uv run livecaster replay --wav tests/fixtures/speech_sk_30s.wav --outline osnova.md --mock-llm
+uv run livecaster replay --wav your-sample.wav --outline demo/demo.md --mock-llm
 ```
 
 ## Remote mode (Zencastr, Meet, Riverside …)
 
 Remote mode captures two channels: your microphone (Host) and the browser's audio output (Guest).
-**Wear headphones** — otherwise the guest's voice re-enters your microphone and only the cross-talk
+**Wear headphones.** Otherwise the guest's voice re-enters your microphone and only the cross-talk
 dedupe saves you.
 
-### macOS, option A — AudioTee (per-process tap, macOS 14.2+)
+### macOS, option A: AudioTee (per-process tap, macOS 14.2+)
 
 ```bash
 ./helpers/audiotee/build.sh          # clones and builds the helper with Swift
@@ -109,7 +124,7 @@ The first run triggers the macOS *system audio recording* permission prompt for 
 app** (System Settings → Privacy & Security → Screen & System Audio Recording). Some terminals never
 raise the prompt; if yours does not, use option B.
 
-### macOS, option B — BlackHole (virtual loopback)
+### macOS, option B: BlackHole (virtual loopback)
 
 1. `brew install blackhole-2ch`
 2. In *Audio MIDI Setup*, create a **Multi-Output Device** containing your headphones **and**
@@ -123,7 +138,7 @@ source = "device:BlackHole 2ch"
 is_direct = true
 ```
 
-### Linux — PipeWire/PulseAudio monitor
+### Linux: PipeWire/PulseAudio monitor
 
 ```bash
 pactl list sources short | grep monitor
@@ -162,18 +177,18 @@ Everything is on disk as it happens, so a crash costs at most the utterance in f
 
 | File | Written |
 |---|---|
-| `session.json` | ≤ 1 s after any change, and at least every 30 s — node states, evidence, mentions, usage |
+| `session.json` | ≤ 1 s after any change, and at least every 30 s: node states, evidence, mentions, usage |
 | `transcript.jsonl` | as each utterance is transcribed |
 | `events.jsonl` | on every start/pause/finish/mark/sync |
 | `audio/*.wav` | continuously while capturing |
 | `llm.jsonl` | every LLM request and response |
 
 ```bash
-uv run livecaster run osnova.md --resume sessions/2026-09-03_osnova
+uv run livecaster run outlines/osnova.md --resume sessions/2026-09-03_osnova
 ```
 
 Resume reloads the transcript, restores every covered/touched/skipped mark and the clock (from the
-furthest of the transcript end, the recorded duration and the last sync mark — a long silence
+furthest of the transcript end, the recorded duration and the last sync mark, because a long silence
 before the crash still happened), and picks up where it stopped. Pressing **Record again** after a
 `Finish` does the same thing without leaving the app; the wrap-up re-runs over everything at the
 end. `livecaster wrapup <dir>` and `livecaster export <dir>` regenerate the notes from a session
@@ -191,7 +206,7 @@ Copy [`livecaster.toml.example`](livecaster.toml.example) and edit. Environment 
 `m` sync mark · `t` toggle transcript · `d` compact/full text · `space` pause/resume · `?` help.
 
 The live surface is deliberately terse: the map marks topics, the **Now** panel shows one line and
-three labels of at most five words each. Click an item — or press `d` — to see the model's reason
+three labels of at most five words each. Click an item, or press `d`, to see the model's reason
 and its suggested segue. Nothing there is meant to be read in full while you are talking.
 
 ## Privacy and cost
@@ -202,7 +217,7 @@ optional link-resolution step in the wrap-up).
 
 A two-hour episode costs about **$0.50**. Measured on real sessions: a tick averages **$0.0009**
 (most of every prompt comes back from Venice's cache), so up to 290 of them come to ~$0.27; the
-Sonnet 5 wrap-up measured **$0.14–0.20** on short episodes and is dominated by the ~9–12k tokens it
+Sonnet 5 wrap-up measured **$0.14 to 0.20** on short episodes and is dominated by the ~9 to 12k tokens it
 writes, not by the transcript it reads. A whole six-minute live session cost **$0.17**.
 Livecaster ticks with
 `deepseek-v4-flash-0731-fast`, which answers in ~9 s instead of the plain model's ~38 s, and wraps
@@ -210,7 +225,7 @@ up on `claude-sonnet-5`, where latency does not matter and the writing does. `DE
 D17) has the measurements. To trade quality back for cost:
 
 ```bash
-uv run livecaster run osnova.md --set llm.tick_model=deepseek-v4-flash-0731 \
+uv run livecaster run outlines/osnova.md --set llm.tick_model=deepseek-v4-flash-0731 \
     --set llm.final_model=deepseek-v4-flash-0731
 ```
 
@@ -222,15 +237,15 @@ prepaid Venice credits:
 
 | Setting | Default | Notes |
 |---|---|---|
-| `llm.tick_model` | `deepseek-v4-flash-0731-fast` | 3–8 s per tick, ~$0.0009 each |
-| `llm.final_model` | `claude-sonnet-5` | Sonnet 5 through Venice; $0.14–0.20 per episode |
+| `llm.tick_model` | `deepseek-v4-flash-0731-fast` | 3 to 8 s per tick, ~$0.0009 each |
+| `llm.final_model` | `claude-sonnet-5` | Sonnet 5 through Venice; $0.14 to 0.20 per episode |
 
 To bill Anthropic or OpenAI directly instead, prefix the model and supply that provider's key:
 
 ```bash
 uv sync --extra anthropic         # only for the direct Anthropic path
 export ANTHROPIC_API_KEY=...
-uv run livecaster run osnova.md --set llm.final_model=anthropic:claude-sonnet-5
+uv run livecaster run outlines/osnova.md --set llm.final_model=anthropic:claude-sonnet-5
 ```
 
 `livecaster check` confirms every configured model exists at the provider it routes to, and prints
@@ -239,14 +254,14 @@ that provider's prices. Add or re-point providers under `[llm.providers.*]` in `
 
 ## Language
 
-Parakeet v3 detects the language per utterance and **cannot be told which one to use** — its
+Parakeet v3 detects the language per utterance and **cannot be told which one to use**. Its
 vocabulary has `<|sk|>` and friends, but neither `parakeet-mlx` nor priming the decoder reaches
 them (`DECISIONS.md`, D20). On poor audio it drifts: a Slovak recording through a Bluetooth headset
 mic came back partly in Polish and once in Russian.
 
 Three things you can do about it, in increasing order of cost:
 
-1. **Lock the language in the UI** — the 🌐 pill in the top bar, changeable mid-session. With
+1. **Lock the language in the UI.** The 🌐 pill in the top bar, changeable mid-session. With
    Parakeet this fixes the language of the notes and prompts and drops any line that comes back in
    an alphabet Slovak never uses. It does not fix Polish-looking Slovak.
 2. **Use a better microphone.** Most of the drift is the 16 kHz Bluetooth headset link, not the
@@ -257,15 +272,15 @@ Three things you can do about it, in increasing order of cost:
 
    | Engine | RTF | Per utterance | Needs |
    |---|---|---|---|
-   | `parakeet-mlx` (default) | 0.055 | ~0.25 s | — but cannot be forced |
+   | `parakeet-mlx` (default) | 0.055 | ~0.25 s | nothing, but cannot be forced |
    | `whisper-mlx` | 0.62 | **2.6 s** | `uv sync --extra mac-whisper` (pulls PyTorch) |
    | `faster-whisper` | 3.68 | 15 s | `uv sync --extra whisper` (no PyTorch) |
 
    ```bash
-   # Live language lock on Apple Silicon — the transcript lands ~2.5 s later, which the
+   # Live language lock on Apple Silicon. The transcript lands ~2.5 s later, which the
    # 25 s tick loop does not notice.
    uv sync --extra mac-whisper
-   uv run livecaster run osnova.md --set stt.engine=whisper-mlx --set stt.language=sk
+   uv run livecaster run outlines/osnova.md --set stt.engine=whisper-mlx --set stt.language=sk
 
    # No PyTorch, but 15 s per utterance: right for re-running a recording, not for live.
    uv sync --extra whisper
@@ -276,7 +291,7 @@ Three things you can do about it, in increasing order of cost:
 
 ## Known issues
 
-- Parakeet v3 cannot be forced to a language — see [Language](#language) above.
+- Parakeet v3 cannot be forced to a language. See [Language](#language) above.
 - `reasoning_effort = "low"` on DeepSeek V4 Flash spends the whole token budget on reasoning and
   returns nothing. Livecaster sends `"none"`; do not raise it without re-measuring.
 - Single-microphone mode has no speaker labels by design; the prompts and exports handle their absence.
@@ -288,5 +303,5 @@ Three things you can do about it, in increasing order of cost:
 
 ## Documentation
 
-- [`docs/RUNBOOK.md`](docs/RUNBOOK.md) — pre-show checklist, during-show keys, post-show steps.
-- [`DECISIONS.md`](DECISIONS.md) — decisions taken during implementation.
+- [`docs/RUNBOOK.md`](docs/RUNBOOK.md): pre-show checklist, during-show keys, post-show steps.
+- [`DECISIONS.md`](DECISIONS.md): decisions taken during implementation.

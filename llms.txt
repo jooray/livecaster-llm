@@ -1,0 +1,172 @@
+# Livecaster
+
+> A live co-pilot for podcast hosts. It transcribes the conversation locally while you record and,
+> every ~25 seconds, asks a fast LLM to reason over your Markdown outline against the recent
+> transcript. The browser UI shows the outline as a live map: covered topics strike through,
+> newly relevant ones light up. At the end it writes show notes, chapters and subtitles.
+
+This file is for agents setting Livecaster up or operating it. Humans want `README.md`.
+
+Hard constraints, in case they decide something for you:
+
+- The outline file is opened for reading and never for writing. The app annotates a copy.
+- Audio never leaves the machine. Only outline text and transcript text reach the LLM.
+- `outlines/`, `sessions/`, `.env` and `livecaster.toml` are git-ignored. They hold episode plans,
+  recordings and API keys. Do not commit them, and do not paste their contents into a chat.
+
+## Setup
+
+Python 3.12 is pinned; `uv` is the only supported installer. Never install into a system Python.
+
+```bash
+uv sync --extra mac            # macOS on Apple Silicon: Parakeet through MLX
+uv sync --extra linux          # Linux: Parakeet through onnxruntime
+uv sync --extra cuda           # Linux with an NVIDIA GPU
+uv sync --extra mac --extra whisper       # adds faster-whisper (forceable language, CPU, slow)
+uv sync --extra mac --extra mac-whisper   # adds mlx-whisper (forceable language, GPU, pulls PyTorch)
+```
+
+The API key comes from the environment or a `.env` file in the project root:
+
+```bash
+export VENICE_API_KEY=...      # https://venice.ai, prepaid credits
+```
+
+Verify before doing anything else. This downloads ~2.4 GB of model weights on a first run:
+
+```bash
+uv run livecaster check        # key, models and prices, STT self-test, devices, permissions, disk
+uv run livecaster devices      # exact device names for the config
+```
+
+If `check` reports a problem, fix it before starting a session. A failing key or a missing model
+will not surface again until the host is already recording.
+
+## Running
+
+```bash
+uv run livecaster run outlines/episode.md               # live: one room, one or more microphones
+uv run livecaster run outlines/episode.md --mode remote # remote guest through the browser
+uv run livecaster replay tests/fixtures/transcript_sk.jsonl --outline demo/demo.md --speed 0
+uv run livecaster replay --wav sample.wav --outline demo/demo.md --mock-llm
+uv run livecaster wrapup sessions/<dir>                 # re-run the show notes on a finished session
+uv run livecaster export sessions/<dir>                 # re-render exports without calling the LLM
+uv run livecaster run outlines/episode.md --resume sessions/<dir>
+```
+
+`--mock-llm` serves canned responses from `tests/fixtures/tick_responses/` and costs nothing. Use
+it for any change you can test without the network. `--speed 0` replays as fast as the machine
+allows.
+
+Every setting can be overridden per run without touching the config file:
+
+```bash
+uv run livecaster run outlines/episode.md --set llm.tick_interval_s=15 --set stt.language=sk
+LIVECASTER_LLM__TICK_MODEL=deepseek-v4-flash-0731 uv run livecaster run outlines/episode.md
+```
+
+Precedence: defaults, then `livecaster.toml` (working directory, then `~/.config/livecaster/`),
+then `LIVECASTER_*` environment variables, then `--set`.
+
+## How it works
+
+Audio path, all local. PortAudio callback enqueues frames, one segmenter thread per channel runs
+Silero VAD over 32 ms frames at 16 kHz and cuts utterances on silence, and a single STT thread owns
+the model because MLX and ONNX sessions are not thread-safe. Results come back to asyncio through
+`loop.call_soon_threadsafe`.
+
+Reasoning path, remote. A tick fires every `llm.tick_interval_s` once `llm.min_new_words` new words
+have been said, and immediately past `llm.burst_words`. It sends the outline (byte-identical all
+session, so the provider's prefix cache hits) plus a rolling window of the last
+`llm.transcript_window_words` words plus the current state. The model returns candidate changes
+with confidences.
+
+The important part: **the LLM proposes and a deterministic reducer disposes.** The model never
+writes state. `session/reducer.py` decides what actually happens, and its rules are not
+negotiable by the model:
+
+- a manual mark from the host always wins, and locks the model out of that item for
+  `llm.manual_lock_minutes`
+- a heading is covered only once its own coverable items are
+- every timestamp the model returns is clamped into the transcript window it actually saw
+- `covered` requires a verbatim quote from the transcript as evidence; a passing mention is
+  `touched`
+
+If you are changing behaviour, that file is where behaviour lives. Prompt changes propose;
+reducer changes decide.
+
+Persistence. `session.json` is written at most a second after any change and at least every 30 s;
+the transcript, events, per-call LLM log and WAV backups stream to disk as they happen. A crash
+costs the utterance in flight, and `--resume` restores the clock, the transcript and every mark.
+
+## Models and providers
+
+A model is written `provider:model`, or bare to use `llm.default_provider` (Venice). Venice proxies
+the Claude and GPT families, so the default configuration bills one set of prepaid credits.
+
+| Setting | Default | Note |
+|---|---|---|
+| `llm.tick_model` | `deepseek-v4-flash-0731-fast` | 3 to 8 s per tick, ~$0.0009 each |
+| `llm.final_model` | `claude-sonnet-5` | the wrap-up, $0.14 to $0.20 per episode |
+| `llm.reasoning_effort_tick` | `none` | raising it on DeepSeek V4 Flash returns empty content |
+| `llm.reasoning_effort_final` | `high` | most of the wrap-up cost is the tokens it writes |
+
+A two-hour episode costs about $0.50. To bill Anthropic or OpenAI directly, prefix the model
+(`anthropic:claude-sonnet-5`) and supply that provider's key; add providers under
+`[llm.providers.*]` in `livecaster.toml`.
+
+## Speech recognition
+
+| Engine | Language forceable | RTF | Per utterance |
+|---|---|---|---|
+| `parakeet-mlx` (default on Apple Silicon) | no | 0.055 | ~0.25 s |
+| `whisper-mlx` | yes | 0.62 | ~2.6 s |
+| `faster-whisper` | yes | 3.68 | ~15 s |
+| `onnx-asr` (default on Linux) | no | | |
+
+Parakeet v3 detects the language per utterance and cannot be told which one to use. Its vocabulary
+contains `<|sk|>` and the rest of the multitask token set, but neither `parakeet-mlx` nor priming
+the TDT prediction network reaches them; this was measured, see `DECISIONS.md` D20. Do not add code
+that pretends otherwise.
+
+When `stt.language` is set and the engine cannot honour it, the language still fixes the prompts
+and the notes, and utterances that come back in an alphabet that language never uses are dropped.
+The host can also lock or release the language mid-session from the UI.
+
+## Working on the code
+
+```bash
+uv run pytest -q                # ~400 tests, integration tests deselected by default
+uv run pytest -m integration    # these call the real API and cost money
+uv run ruff format . && uv run ruff check .
+```
+
+Line length is 110. Tests must pass without network access; anything that needs the API belongs
+behind the `integration` marker. `DECISIONS.md` records why things are the way they are, with the
+measurements behind them, and is worth reading before changing an odd-looking choice.
+
+Layout:
+
+```
+src/livecaster/
+  engine.py            orchestration: audio -> VAD -> STT -> transcript -> reasoner -> broadcast
+  config.py            the whole config model; livecaster.toml mirrors it
+  audio/               sources, VAD, segmenter, recorder, device enumeration
+  stt/                 one Protocol, one file per engine, plus the worker thread and postprocess
+  llm/                 client, provider routing, prompts, schemas, the tick loop, the wrap-up
+  session/             models, the reducer, the store, transcript, exports, the fast lane
+  server/              FastAPI app, WebSocket protocol, static file serving with a build id
+  ui/                  vanilla JS, no build step
+  templates/           Jinja2 templates for the exports
+```
+
+## When something is wrong
+
+- LLM errors are not fatal. Transcription keeps running and ticks resume on their own with a
+  5 s to 120 s backoff.
+- A full STT queue means the machine cannot keep up. It drains at the end of the session.
+- On macOS the microphone and system-audio permissions are granted to the terminal application,
+  not to Livecaster, and some terminals never raise the prompt. BlackHole is the documented
+  fallback for system audio.
+- Opening a Bluetooth headset's microphone puts the link into 16 kHz handsfree mode, which
+  degrades both the transcript and what the host hears. `livecaster devices` flags it.

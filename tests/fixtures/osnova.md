@@ -68,17 +68,23 @@ Otázka: Prečo chodíš na Bitcoinové/Lunarpunk akcie a prednášaš na Krypto
 
 ## 6. Poznámky z prvej session (2026-08-31)
 
-Poznámka odstránená z histórie.
+Prvé cvičenie bolo intenzívnejšie[118;1:3u, než som čakal. Tempo viedla lektorka, dych bol jemný a
+napriek tomu sa po pár minútach ozvalo telo skôr ako hlava.
 
-Poznámka odstránená z histórie.
+Najviac mi sadlo striedanie fáz. Kratšie nádychy, dlhé výdychy, a medzi tým pauza, v ktorej sa
+nedalo myslieť na nič iné než na to, čo sa práve deje.
 
-Poznámka odstránená z histórie.
+Zaujímavá bola časť ku koncu, keď sa tempo spomalilo a pozornosť sa vrátila do tela. Podobný
+prechod poznám z tréningu s biofeedbackom: chvíľu tápem a potom nájdem, čo funguje.
 
-Poznámka odstránená z histórie.
+Prirovnanie, ktoré mi zostalo, je surfovanie. Nejde o silu, ide o to chytiť vlnu a potom ju len
+vedome nasledovať.
 
-Poznámka odstránená z histórie.
+Praktický záver: dych a tep sú dva ukazovatele, ktoré mám k dispozícii kedykoľvek, bez pomôcok a
+bez prípravy.
 
-Poznámka odstránená z histórie.
+Otvorená otázka do rozhovoru: koľko z toho je technika a koľko len to, že si na dvadsať minút
+sadnem a nič iné nerobím.
 
 ## Záver / uzatvárací oblúk
 

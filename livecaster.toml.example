@@ -1,7 +1,7 @@
 # Livecaster configuration.
 #
 # Copy to `livecaster.toml` next to your outline, or to ~/.config/livecaster/livecaster.toml.
-# Every key can be overridden per run:  livecaster run osnova.md --set llm.tick_interval_s=15
+# Every key can be overridden per run:  livecaster run outlines/osnova.md --set llm.tick_interval_s=15
 # Environment variables work too:       LIVECASTER_LLM__TICK_MODEL=deepseek-v4-pro-0813
 
 [audio]
@@ -37,7 +37,7 @@ model = ""             # empty = the engine's default model
 # every utterance to a 30 s window, so it costs the same for "tak" as for a
 # sentence; what differs is where it runs:
 #   uv sync --extra mac-whisper    # GPU, 2.6 s/utterance — usable live, pulls PyTorch
-#   livecaster run osnova.md --set stt.engine=whisper-mlx --set stt.language=sk
+#   livecaster run outlines/osnova.md --set stt.engine=whisper-mlx --set stt.language=sk
 #   uv sync --extra whisper        # CPU, 15 s/utterance — for a re-run, no PyTorch
 #   livecaster replay sessions/<dir> --set stt.engine=faster-whisper --set stt.language=sk
 # Parakeet, for comparison: 0.25 s/utterance and no way to force the language.
