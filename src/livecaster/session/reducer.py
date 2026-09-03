@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Any, Literal, get_args
 
 from rapidfuzz import fuzz
 
@@ -17,6 +17,7 @@ from livecaster.session.models import (
     HotInfo,
     HotInfoRef,
     Mention,
+    MentionKind,
     NewTopic,
     NodeState,
     Patch,
@@ -34,6 +35,7 @@ MAX_HOT = 5
 MAX_QUESTIONS = 5
 QUESTION_DEDUPE_RATIO = 85
 NEW_TOPIC_DEDUPE_RATIO = 80
+MENTION_KINDS = set(get_args(MentionKind))
 
 
 @dataclass
@@ -230,7 +232,7 @@ def apply_tick(
         if existing is None:
             mention = Mention(
                 id=f"M{len(session.mentions) + 1}",
-                kind=m.kind if m.kind in Mention.model_fields["kind"].annotation.__args__ else "other",  # type: ignore[union-attr]
+                kind=m.kind if m.kind in MENTION_KINDS else "other",  # type: ignore[arg-type]
                 text=m.text,
                 context=m.context,
                 first_t=first_t,

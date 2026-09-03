@@ -203,3 +203,32 @@ def test_write_exports_writes_all_five_files(
     assert "Neurofeedback" not in annotated  # new topics come from the session, not the analysis
     round_tripped = json.loads(Path(paths["final_analysis"]).read_text(encoding="utf-8"))
     assert round_tripped["language"] == "sk"
+
+
+def test_srt_trims_the_earlier_cue_when_two_channels_overlap():
+    """People talk over each other; timings must stay anchored to the recording."""
+    segments = [
+        Segment(id="S1", channel="Host", speaker="Host", t0=10.0, t1=16.0, text="a b c"),
+        Segment(id="S2", channel="Guest", speaker="Guest", t0=14.0, t1=18.0, text="d e f"),
+        Segment(id="S3", channel="Host", speaker="Host", t0=19.0, t1=22.0, text="g h i"),
+    ]
+    cues = _parse_srt(render_srt(segments, show_speakers=True))
+    starts = [_to_seconds(c[1]) for c in cues]
+    ends = [_to_seconds(c[2]) for c in cues]
+    assert starts == [10.0, 14.0, 19.0]  # never pushed forward
+    assert ends[0] == 14.0  # the first cue is trimmed, not the second delayed
+    assert all(ends[i] <= starts[i + 1] + 1e-6 for i in range(len(cues) - 1))
+
+
+def test_srt_keeps_a_minimum_cue_length_on_a_pile_up():
+    segments = [
+        Segment(id=f"S{i}", channel="Host", speaker="Host", t0=5.0, t1=5.05, text=f"w{i}") for i in range(4)
+    ]
+    cues = _parse_srt(render_srt(segments, show_speakers=False))
+    for _index, start, end, _text in cues:
+        assert _to_seconds(end) - _to_seconds(start) >= 0.19
+
+
+def test_srt_drops_empty_cues():
+    segments = [Segment(id="S1", channel="Host", t0=0.0, t1=3.0, text="   ")]
+    assert render_srt(segments, show_speakers=False).strip() == ""

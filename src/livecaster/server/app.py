@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
@@ -46,7 +48,29 @@ def create_app(engine: Engine, ui_dir: Path | None = None) -> FastAPI:
     directory = ui_dir or UI_DIR
     build_id = compute_build_id(directory)
     manager = ConnectionManager()
-    app = FastAPI(title="Livecaster", docs_url=None, redoc_url=None)
+
+    async def status_loop() -> None:
+        try:
+            while True:
+                await asyncio.sleep(1.0 / STATUS_HZ)
+                if manager.count:
+                    manager.broadcast(StatusMessage(**engine.status_payload()))
+        except asyncio.CancelledError:  # pragma: no cover
+            raise
+
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+        await engine.startup()
+        task = asyncio.create_task(status_loop(), name="status")
+        try:
+            yield
+        finally:
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError, Exception):
+                await task
+            await engine.shutdown()
+
+    app = FastAPI(title="Livecaster", docs_url=None, redoc_url=None, lifespan=lifespan)
     app.state.engine = engine
     app.state.manager = manager
     app.state.build_id = build_id
@@ -70,29 +94,6 @@ def create_app(engine: Engine, ui_dir: Path | None = None) -> FastAPI:
             manager.broadcast(PatchMessage(session_status=str(payload)))
 
     engine.store.subscribe(on_event)
-
-    async def status_loop() -> None:
-        try:
-            while True:
-                await asyncio.sleep(1.0 / STATUS_HZ)
-                if manager.count:
-                    manager.broadcast(StatusMessage(**engine.status_payload()))
-        except asyncio.CancelledError:  # pragma: no cover
-            raise
-
-    @app.on_event("startup")
-    async def _startup() -> None:  # pragma: no cover - exercised by the CLI
-        await engine.startup()
-        app.state.status_task = asyncio.create_task(status_loop(), name="status")
-
-    @app.on_event("shutdown")
-    async def _shutdown() -> None:  # pragma: no cover - exercised by the CLI
-        task = getattr(app.state, "status_task", None)
-        if task is not None:
-            task.cancel()
-            with contextlib.suppress(asyncio.CancelledError, Exception):
-                await task
-        await engine.shutdown()
 
     # --- routes -------------------------------------------------------------
 

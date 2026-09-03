@@ -177,26 +177,46 @@ def _split_segment_for_srt(seg: Segment) -> list[tuple[float, float, str]]:
     return out or [(seg.t0, seg.t1, seg.text)]
 
 
+MIN_CUE_S = 0.2
+
+
 def render_srt(segments: Sequence[Segment], *, show_speakers: bool, sync_offset: float = 0.0) -> str:
-    cues: list[dict[str, object]] = []
-    prev_end = 0.0
+    """SRT cues, ≤ 7 s each, non-overlapping and in order.
+
+    Two channels genuinely overlap when people talk over each other. Rather than
+    pushing every later cue forward — which would drift further from the audio with
+    every interruption — an overlap trims the *previous* cue back to where the next
+    one starts, so timings stay anchored to the recording.
+    """
+    raw: list[tuple[float, float, str]] = []
     for seg in segments:
         for start, end, text in _split_segment_for_srt(seg):
-            s = max(0.0, start - sync_offset)
-            e = max(s + 0.2, end - sync_offset)
-            s = max(s, prev_end)
-            e = max(e, s + 0.2)
-            prev_end = e
             body = f"{seg.speaker}: {text}" if (show_speakers and seg.speaker) else text
-            cues.append(
-                {
-                    "index": len(cues) + 1,
-                    "start": fmt_srt_time(s),
-                    "end": fmt_srt_time(e),
-                    "text": body.strip(),
-                }
-            )
+            body = body.strip()
+            if body:
+                raw.append((max(0.0, start - sync_offset), max(0.0, end - sync_offset), body))
+    raw.sort(key=lambda c: (c[0], c[1]))
+
+    timed: list[list[float | str]] = []
+    for start, end, body in raw:
+        if timed:
+            previous = timed[-1]
+            prev_start, prev_end = float(previous[0]), float(previous[1])
+            if start < prev_end:
+                previous[1] = max(start, prev_start + MIN_CUE_S)
+            start = max(start, float(previous[1]))
+        timed.append([start, max(end, start + MIN_CUE_S), body])
+
     env = make_env()
+    cues = [
+        {
+            "index": i,
+            "start": fmt_srt_time(float(start)),
+            "end": fmt_srt_time(float(end)),
+            "text": body,
+        }
+        for i, (start, end, body) in enumerate(timed, start=1)
+    ]
     return env.get_template("transcript.srt.j2").render(cues=cues)
 
 

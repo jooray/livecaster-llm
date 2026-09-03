@@ -57,7 +57,8 @@ ignore = ["B008"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
-filterwarnings = ["ignore::DeprecationWarning"]
+# Third-party deprecations are noise; our own are bugs to fix.
+filterwarnings = ["ignore::DeprecationWarning", "error::DeprecationWarning:livecaster.*"]
 # Integration tests hit the network or download models; run them with `-m integration`.
 addopts = "-m 'not integration'"
 markers = [
