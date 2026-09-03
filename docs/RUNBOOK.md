@@ -33,6 +33,9 @@ Checklist:
 - [ ] `check` prints both models with prices and a green STT self-test.
 - [ ] Device names in `livecaster.toml` match what `devices` prints. macOS renames devices when
       you plug things in differently.
+- [ ] **No device is flagged "headset mode".** A Bluetooth headset used as a microphone drops the
+      whole link to 16 kHz mono handsfree — the headphones start to sound like a phone call and
+      the transcript gets noticeably worse. A wired or USB microphone is the fix.
 - [ ] **Headphones on.** In remote mode, speakers put the guest's voice back into your microphone;
       the cross-talk dedupe catches most of it but not all.
 - [ ] Your real recorder (Zencastr, field recorder) is armed. Livecaster's WAV is a backup only.
@@ -65,14 +68,20 @@ has trigger phrases when you begin.
 | `1` `2` `3` | jump to the hot item with that rank |
 | `m` | sync mark |
 | `t` | show the transcript panel |
+| `d` | switch between labels only and the full text |
 | `space` | pause / resume capture |
 | `?` | this table, in the app |
+
+**The surface is meant to be glanced at, not read.** **Now** is one line; **Next** is three
+labels of at most five words. The model's reason and the segue it suggests are hidden until you
+click an item — or press `d`, which opens everything at once. If you find yourself reading
+paragraphs mid-sentence, press `d` again.
 
 What the map shows:
 
 - **struck through** — covered, with the time it happened
 - **dotted underline ◐** — touched, mentioned in passing
-- **orange bar with ① ② ③** — hot right now, with the reason and a segue you could say
+- **orange bar with ① ② ③** — hot right now; select it or press `d` for the reason and a segue
 - **faint tint** — the fast lane heard a trigger word; a hint, not a state
 - **⏭** — you skipped it
 - `3/7` next to a heading — how much of that section is done
@@ -91,7 +100,10 @@ ten minutes. That is deliberate: it stops the tick loop from arguing with you.
 | STT queue climbing | You are on a slow machine with two channels. Nothing to do live; the queue drains at the end. |
 | Transcript stopped | Check the level meters. If a meter is dead, the device changed — **Pause**, fix it, **Resume**. |
 | Wrong topic went hot | Ignore it, or press `x` to skip the item so it stops coming back. |
-| The app crashed | `uv run livecaster run osnova.md --resume sessions/<dir>` — everything except the utterance in flight is on disk. |
+| The app crashed | `uv run livecaster run osnova.md --resume sessions/<dir>` — everything except the utterance in flight is on disk. The clock, the transcript and every mark come back. |
+| The transcript is in the wrong language | Click the 🌐 pill and pick one. It applies to the next utterance. With Parakeet this fixes the notes and drops wrong-alphabet lines but cannot force the words themselves — that needs a better microphone, or `stt.engine=faster-whisper`, which is too slow to use live. |
+| The headphones sound like a phone call | Their microphone is open, so macOS switched the Bluetooth link to 16 kHz handsfree. That is macOS. Use a wired or USB mic and keep the headphones for listening. |
+| You pressed Finish too early | Press **Record again**. The clock and every mark continue, and the wrap-up re-runs over the whole thing at the end. |
 | You edited the outline mid-show | It reloads within two seconds and keeps every status whose line did not change. |
 
 ## Finishing
@@ -99,7 +111,9 @@ ten minutes. That is deliberate: it stops the tick loop from arguing with you.
 1. Press **Finish** (not Ctrl-C). The app flushes the STT queue, runs one last tick, then the
    wrap-up on Sonnet 5 at `reasoning_effort_final = "high"` — **one to three minutes**; the UI
    shows what it is doing. `--set llm.reasoning_effort_final=none` is faster and plainer.
-2. A card shows the duration, tick count, cost and the output paths.
+2. A card shows the duration, tick count and cost, and **Open show notes** switches to the
+   **Result** tab, where the notes, the annotated outline, the transcript and the SRT are rendered
+   in the app — no need to go looking on disk. The tab stays after a reload or a `--resume`.
 
 Outputs land in `sessions/<date>_<slug>/final/`:
 
