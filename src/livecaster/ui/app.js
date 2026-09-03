@@ -31,6 +31,8 @@
     return [h, m, sec].map((x) => String(x).padStart(2, "0")).join(":");
   };
 
+  const shorten = (s, max) => (s.length <= max ? s : s.slice(0, max).replace(/\s+\S*$/, "") + "…");
+
   const inlineMd = (s) =>
     (window.marked && window.marked.parseInline) ? window.marked.parseInline(s) : escapeHtml(s);
 
@@ -161,10 +163,11 @@
 
       const reason = el("div", "reason hidden");
       const segue = el("div", "segue hidden");
-      wrapper.append(row, reason, segue);
+      const prep = el("div", "prep hidden");
+      wrapper.append(row, reason, segue, prep);
       root.appendChild(wrapper);
 
-      state.elements.set(node.id, { root: wrapper, row, text, badge, reason, segue, frac, keycap });
+      state.elements.set(node.id, { root: wrapper, row, text, badge, reason, segue, frac, keycap, prep });
       if (node.coverable) state.order.push(node.id);
 
       row.addEventListener("click", (e) => {
@@ -252,15 +255,37 @@
   function select(id, scroll = true) {
     if (state.selected) {
       const prev = state.elements.get(state.selected);
-      if (prev) prev.root.classList.remove("selected");
+      if (prev) {
+        prev.root.classList.remove("selected");
+        prev.prep.classList.add("hidden");
+      }
     }
     state.selected = id;
     const parts = state.elements.get(id);
     if (parts) {
       parts.root.classList.add("selected");
+      renderPreflight(id, parts);
       if (scroll) parts.root.scrollIntoView({ block: "nearest" });
     }
     send({ type: "select", node_id: id });
+  }
+
+  function renderPreflight(id, parts) {
+    const pf = state.session && state.session.preflight;
+    const node = pf && pf.nodes && pf.nodes[id];
+    if (!node || (!node.questions.length && !node.related.length)) {
+      parts.prep.classList.add("hidden");
+      return;
+    }
+    parts.prep.innerHTML = "";
+    for (const q of node.questions) parts.prep.append(el("div", "prep-q", q));
+    if (node.related.length) {
+      const related = node.related
+        .map((r) => shorten(((state.nodesById.get(r) || {}).text || r), 48))
+        .join(" · ");
+      parts.prep.append(el("div", "prep-rel", `↔ ${related}`));
+    }
+    parts.prep.classList.remove("hidden");
   }
 
   function moveSelection(delta) {

@@ -221,6 +221,16 @@ main {
 .node .segue::before { content: "↳ „"; }
 .node .segue::after { content: "“"; }
 
+.node .prep {
+  font-size: 15px;
+  padding: 2px 8px 6px 30px;
+  border-left: 2px solid var(--line);
+  margin-left: 26px;
+}
+.node .prep-q { color: var(--fg-dim); }
+.node .prep-q::before { content: "? "; color: var(--accent); }
+.node .prep-rel { color: var(--fg-mute); font-size: 14px; }
+
 .depth-1 { padding-left: 22px; }
 .depth-2 { padding-left: 44px; }
 .depth-3 { padding-left: 66px; }

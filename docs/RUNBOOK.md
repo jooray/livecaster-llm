@@ -88,7 +88,10 @@ ten minutes. That is deliberate: it stops the tick loop from arguing with you.
 ## Finishing
 
 1. Press **Finish** (not Ctrl-C). The app flushes the STT queue, runs one last tick, then the
-   wrap-up. On a two-hour episode that is about a minute.
+   wrap-up. The wrap-up thinks hard by default (`reasoning_effort_final = "high"`), which takes
+   **five to eight minutes** on a two-hour episode; the UI shows what it is doing. If you want the
+   notes sooner and can live with plainer titles, start the session with
+   `--set llm.reasoning_effort_final=none` and it takes about two minutes.
 2. A card shows the duration, tick count, cost and the output paths.
 
 Outputs land in `sessions/<date>_<slug>/final/`:
@@ -136,7 +139,10 @@ Knobs worth touching, in order of usefulness:
 - `llm.cover_threshold` — raise it if items get struck through too eagerly.
 - `llm.tick_interval_s` — lower it for a fast-moving conversation, at proportional cost.
 - `llm.transcript_window_words` — raise it if the model keeps losing the thread.
-- `llm.reasoning_effort_tick` — `none` if ticks are slower than about ten seconds.
+- `llm.tick_model` — `deepseek-v4-flash-0731` is half the price of the `-fast` default but takes
+  ~38 s per tick instead of ~9 s. Only worth it if you tick rarely.
+- `llm.reasoning_effort_tick` — leave it at `none`. On DeepSeek V4 Flash, `low` spends the whole
+  token budget on reasoning and returns an empty answer.
 
 ## Recording the STT self-test samples
 
