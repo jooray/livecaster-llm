@@ -101,7 +101,7 @@ ten minutes. That is deliberate: it stops the tick loop from arguing with you.
 | Transcript stopped | Check the level meters. If a meter is dead, the device changed — **Pause**, fix it, **Resume**. |
 | Wrong topic went hot | Ignore it, or press `x` to skip the item so it stops coming back. |
 | The app crashed | `uv run livecaster run osnova.md --resume sessions/<dir>` — everything except the utterance in flight is on disk. The clock, the transcript and every mark come back. |
-| The transcript is in the wrong language | Click the 🌐 pill and pick one. It applies to the next utterance. With Parakeet this fixes the notes and drops wrong-alphabet lines but cannot force the words themselves — that needs a better microphone, or `stt.engine=faster-whisper`, which is too slow to use live. |
+| The transcript is in the wrong language | Click the 🌐 pill and pick one. It applies to the next utterance. With Parakeet this fixes the notes and drops wrong-alphabet lines but cannot force the words themselves — that needs a better microphone, or `stt.engine=whisper-mlx` (2.6 s per utterance, still fine live). |
 | The headphones sound like a phone call | Their microphone is open, so macOS switched the Bluetooth link to 16 kHz handsfree. That is macOS. Use a wired or USB mic and keep the headphones for listening. |
 | You pressed Finish too early | Press **Record again**. The clock and every mark continue, and the wrap-up re-runs over the whole thing at the end. |
 | You edited the outline mid-show | It reloads within two seconds and keeps every status whose line did not change. |

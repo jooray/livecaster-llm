@@ -30,7 +30,8 @@ class WhisperMLXEngine:
             import mlx_whisper
         except ImportError as exc:  # pragma: no cover - platform dependent
             raise EngineUnavailable(
-                "mlx-whisper is not installed. Run `uv sync --extra mac` on Apple Silicon."
+                "mlx-whisper is not installed. Run `uv sync --extra mac-whisper` — note that it "
+                "pulls in PyTorch, which the default macOS install deliberately avoids (D7)."
             ) from exc
         self._transcribe = mlx_whisper.transcribe
         log.info("using %s", self.model_id)

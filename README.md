@@ -249,15 +249,27 @@ Three things you can do about it, in increasing order of cost:
 2. **Use a better microphone.** Most of the drift is the 16 kHz Bluetooth headset link, not the
    model. `livecaster devices` flags devices running in headset mode.
 3. **Switch to Whisper, which honours the language.** Measured on the same 23 utterances, every
-   line stayed Slovak and the words improved:
+   line stayed Slovak and the words improved ("Ako to celé urobiť?" for "Ako to celę robić?").
+   Whisper pads every input to a 30 s window, so it costs the same for "tak" as for a sentence:
+
+   | Engine | RTF | Per utterance | Needs |
+   |---|---|---|---|
+   | `parakeet-mlx` (default) | 0.055 | ~0.25 s | — but cannot be forced |
+   | `whisper-mlx` | 0.62 | **2.6 s** | `uv sync --extra mac-whisper` (pulls PyTorch) |
+   | `faster-whisper` | 3.68 | 15 s | `uv sync --extra whisper` (no PyTorch) |
 
    ```bash
-   uv sync --extra whisper     # faster-whisper is CTranslate2, not PyTorch
-   uv run livecaster run osnova.md --set stt.engine=faster-whisper --set stt.language=sk
+   # Live language lock on Apple Silicon — the transcript lands ~2.5 s later, which the
+   # 25 s tick loop does not notice.
+   uv sync --extra mac-whisper
+   uv run livecaster run osnova.md --set stt.engine=whisper-mlx --set stt.language=sk
+
+   # No PyTorch, but 15 s per utterance: right for re-running a recording, not for live.
+   uv sync --extra whisper
+   uv run livecaster replay sessions/<dir> --set stt.engine=faster-whisper --set stt.language=sk
    ```
 
-   It costs ~15 s per utterance on CPU (Whisper pads everything to a 30 s window) against
-   Parakeet's ~0.3 s, so this is the setting for a re-run afterwards, not for a live show.
+   `faster-whisper` does not get faster with more threads (4.63 / 4.66 / 4.67 RTF at 4 / 8 / 12).
 
 ## Known issues
 

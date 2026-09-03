@@ -249,13 +249,26 @@ language: every variant of `<|sk|>`, `<|cs|>`, `<|pl|>`, `<|en|>` still decoded 
 Polish. `parakeet-mlx` 0.5.2 has no language argument anywhere in the package. So the engine
 attribute is `can_force_language = False`, and that is a property of the model, not a TODO.
 
-**faster-whisper honours `language="sk"` and fixes the text — at 15 s per utterance.** Same 23
-utterances, `large-v3-turbo` int8 on CPU: every line stayed in Slovak and the words got better
-("Ako to celé urobiť?" not "Ako to celę robić?", "S Zuzkou" not "S Zuzku"). But Whisper pads
-every input to a 30 s window, so cost is per *call*, not per second of speech: **RTF 3.68**,
-~15 s regardless of utterance length. Unusable while the show is running; fine afterwards.
+**Whisper honours `language="sk"` and fixes the text. What it costs depends on the backend.**
+Same 23 utterances, `large-v3-turbo`, every line stayed in Slovak and the words got better
+("Ako to celé urobiť?" not "Ako to celę robić?", "S Zuzkou" not "S Zuzku"). Whisper pads every
+input to a 30 s window, so the cost is per *call*, not per second of speech — a 2 s "tak" costs
+what a 14 s sentence does:
 
-So there are three levers, and they are all exposed rather than chosen for the host:
+| Engine | Forces language | RTF | Per utterance | Cost of admission |
+|---|---|---|---|---|
+| `parakeet-mlx` (MLX, GPU) | no | 0.055 | ~0.25 s | — |
+| `whisper-mlx` (MLX, GPU) | **yes** | 0.62 | **2.6 s** | PyTorch (D7) |
+| `faster-whisper` (CTranslate2, CPU) | **yes** | 3.68 | 15 s | none |
+
+`faster-whisper` does not scale with threads — 4.63 / 4.66 / 4.67 at 4, 8 and 12 — so 15 s is the
+floor on this machine, and that is a re-run engine, not a live one. **`whisper-mlx` at 2.6 s is
+usable live**: speech is well under half of wall-clock in a conversation, so the worker keeps up
+and the queue drains in the pauses; the transcript simply lands ~2.5 s later, which the 25 s tick
+loop does not notice. Fast back-and-forth of many short utterances is where it would get tight,
+because the ~2 s floor applies to "tak" as much as to a sentence.
+
+So there are four levers, and they are all exposed rather than chosen for the host:
 
 1. `stt.language` is honoured by whichever engine can honour it, and is a hint everywhere else.
 2. The language can be locked (or released) live from the UI, mid-session — the STT worker reads
@@ -263,6 +276,12 @@ So there are three levers, and they are all exposed rather than chosen for the h
 3. When a language is locked and the engine cannot force it, whole utterances in an alphabet that
    language never uses are dropped (`postprocess.wrong_script`). It catches the Cyrillic case
    exactly and never fires on Latin-script drift, which is the honest limit of a cheap guard.
+4. `stt.engine = "whisper-mlx"` buys a real lock for 2.3 s of extra latency and a PyTorch install.
+
+None of this is the whole story: most of the damage was the microphone. The same model transcribes
+the host's published podcast cleanly. A 16 kHz Bluetooth headset link is what pushed a Slovak
+speaker into Polish, and no engine here recovers "Wim Hof" from it — mlx-whisper says "Limov",
+faster-whisper "Vimov". `livecaster devices` now flags a device running in headset mode.
 
 `faster-whisper` moved into its own `whisper` extra: it is CTranslate2, not PyTorch, so unlike
 `mlx-whisper` it installs on macOS without violating the no-torch ground rule (D7).

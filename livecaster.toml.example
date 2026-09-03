@@ -33,11 +33,14 @@ model = ""             # empty = the engine's default model
 # prompts, and drops lines that come back in the wrong alphabet entirely.
 # You can also lock or release the language live, from the pill in the top bar.
 #
-# For a hard lock — measured on Slovak, every line stayed Slovak:
-#   uv sync --extra whisper
-#   livecaster run osnova.md --set stt.engine=faster-whisper --set stt.language=sk
-# Cost: Whisper pads every utterance to 30 s, so it is ~15 s per utterance on CPU
-# (RTF 3.7) against Parakeet's 0.06. Right for a re-run afterwards, too slow live.
+# For a hard lock — measured on Slovak, every line stayed Slovak. Whisper pads
+# every utterance to a 30 s window, so it costs the same for "tak" as for a
+# sentence; what differs is where it runs:
+#   uv sync --extra mac-whisper    # GPU, 2.6 s/utterance — usable live, pulls PyTorch
+#   livecaster run osnova.md --set stt.engine=whisper-mlx --set stt.language=sk
+#   uv sync --extra whisper        # CPU, 15 s/utterance — for a re-run, no PyTorch
+#   livecaster replay sessions/<dir> --set stt.engine=faster-whisper --set stt.language=sk
+# Parakeet, for comparison: 0.25 s/utterance and no way to force the language.
 language = "auto"
 cpu_threads = 0        # faster-whisper only; 0 = the CTranslate2 default
 
