@@ -8,11 +8,11 @@
     "titles": "Návrhy názvov",
     "description_short": "Krátky popis",
     "description_long": "Dlhý popis",
-    "social": "Príspevky na sociálne siete",
     "quotes": "Citáty",
     "mentions": "Spomenuté / odkazy",
     "promises": "Sľuby z nahrávky",
-    "new_topics": "Témy mimo osnovy"
+    "new_topics": "Témy mimo osnovy",
+    "social_post": "Príspevky na sociálne siete"
   },
   "summary": [
     "Zuzka vysvetľuje, prečo je dych jediná funkcia autonómneho nervového systému, ktorú vieme vedome ovládať.",
@@ -172,16 +172,6 @@
   ],
   "description_short": "Zuzka z dychova-praca.example o tom, prečo predĺžený výdych mení fyziológiu, čo je CO2 tolerancia a ako sa dych líši od psychedelík.",
   "description_long": "V tejto epizóde sa s Zuzkou z dychova-praca.example rozprávame o dychu ako o praktickom nástroji, nie o ezoterike.\n\nPrejdeme fyziológiu predĺženého výdychu a jeho okamžitý efekt na HRV, tréning tolerancie na oxid uhličitý v štýle Buteyko a nosové dýchanie pri intenzívnom výkone.\n\nDruhá polovica epizódy porovnáva dychovú prax s psychedelikami a s Wim Hof metódou a hovorí o tom, kedy je dych len príjemná náplasť na hlbší problém.",
-  "social": [
-    {
-      "platform": "x",
-      "text": "Dvadsať minút dychu je použiteľnejšie ako sedemhodinový trip. Nová epizóda s Zuzkou z dychova-praca.example je vonku."
-    },
-    {
-      "platform": "linkedin",
-      "text": "Nová epizóda: dych ako denná údržba nervového systému. S Zuzkou hovoríme o tom, čo sa dá zmerať, čo je len tradícia, a kedy je dych len náplasť na hlbší problém."
-    }
-  ],
   "quotes": [
     {
       "t": 88.0,
@@ -252,5 +242,6 @@
       "title": "Neurofeedback",
       "summary": "Hosť porovnáva dychovú prax so skúsenosťou s neurofeedbackom."
     }
-  ]
+  ],
+  "social_post": "Nová epizóda Podcast o všeličom. S Zuzkou z dychova-praca.example o tom, prečo predĺžený výdych upokojí nervový systém za pár minút, ako sa efekt dá odmerať na HRV a čo s tým má spoločné tolerancia na CO2. Dych ako denná údržba, nie ezoterika."
 }

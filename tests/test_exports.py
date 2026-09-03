@@ -232,3 +232,14 @@ def test_srt_keeps_a_minimum_cue_length_on_a_pile_up():
 def test_srt_drops_empty_cues():
     segments = [Segment(id="S1", channel="Host", t0=0.0, t1=3.0, text="   ")]
     assert render_srt(segments, show_speakers=False).strip() == ""
+
+
+def test_the_social_post_is_one_post_without_hashtags(analysis, session, outline):
+    """One post for X, Nostr, LinkedIn and Facebook, and no hashtags (D23)."""
+    md = render_show_notes(analysis, session, outline)
+    section = md.split(f"## {analysis.label('social_post')}", 1)[1].split("\n## ", 1)[0]
+    assert analysis.social_post in section
+    assert "#" not in section
+    # No per-platform sub-headings any more.
+    for platform in ("**x**", "**linkedin**", "**generic**"):
+        assert platform not in section

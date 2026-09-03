@@ -220,6 +220,12 @@ async def handle_client_message(engine: Engine, data: dict[str, Any], manager: C
         pass  # client-side only; accepted so the UI can keep one message shape
     elif kind == "set_language":
         engine.set_language(message.language)  # type: ignore[union-attr]
+    elif kind == "set_ticks":
+        engine.set_ticks(
+            interval_s=message.interval_s,  # type: ignore[union-attr]
+            min_new_words=message.min_new_words,  # type: ignore[union-attr]
+            burst_words=message.burst_words,  # type: ignore[union-attr]
+        )
     elif kind == "control":
         action = message.action  # type: ignore[union-attr]
         if action == "start":

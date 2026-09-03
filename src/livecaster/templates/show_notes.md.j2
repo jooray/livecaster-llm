@@ -44,14 +44,9 @@ _{{ duration }}{% if sync_offset %} · timestamps relative to sync mark at {{ sy
 
 {{ analysis.description_long }}
 
-## {{ label('social') }}
+## {{ label('social_post') }}
 
-{% for s in analysis.social %}
-**{{ s.platform }}**
-
-{{ s.text }}
-
-{% endfor %}
+{{ analysis.social_post }}
 
 ## {{ label('quotes') }}
 

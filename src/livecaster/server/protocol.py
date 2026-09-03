@@ -111,7 +111,25 @@ class SetLanguageAction(BaseModel):
     language: str = "auto"
 
 
-ClientMessage = MarkAction | PinAction | SyncMarkAction | ControlAction | SelectAction | SetLanguageAction
+class SetTicksAction(BaseModel):
+    """Retune the tick loop live. Bounds keep a slip of the keyboard from either
+    hammering the API or silencing the co-pilot for the rest of the episode."""
+
+    type: Literal["set_ticks"]
+    interval_s: float = Field(ge=5, le=600)
+    min_new_words: int = Field(ge=0, le=500)
+    burst_words: int = Field(ge=10, le=2000)
+
+
+ClientMessage = (
+    MarkAction
+    | PinAction
+    | SyncMarkAction
+    | ControlAction
+    | SelectAction
+    | SetLanguageAction
+    | SetTicksAction
+)
 
 
 def parse_client_message(data: dict[str, Any]) -> ClientMessage:
@@ -123,6 +141,7 @@ def parse_client_message(data: dict[str, Any]) -> ClientMessage:
         "control": ControlAction,
         "select": SelectAction,
         "set_language": SetLanguageAction,
+        "set_ticks": SetTicksAction,
     }
     model = table.get(str(kind))
     if model is None:

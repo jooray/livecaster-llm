@@ -243,7 +243,10 @@ host did not get to and might use for a next episode.
 - "titles": 8-12 candidates in varied styles (descriptive, curiosity, quote, question, short).
 - "description_short" (<= 300 characters) and "description_long" (<= 1500 characters) must be \
 publishable as they are.
-- "social": two variants for different platforms.
+- "social_post": ONE post that goes out unchanged on X, Nostr, LinkedIn and Facebook. Write it \
+for a reader who has not heard the episode: what it is about and why it is worth their time. \
+**No hashtags at all** — not one, anywhere in it. No "link in bio", no emoji spam, no \
+"🎙️ New episode" opener. Plain sentences, the host's voice, a few hundred characters.
 - "quotes": verbatim fragments from the transcript with their timestamp; never paraphrase.
 - "mentions": everything worth linking. Include a URL only if you are certain it is real; \
 otherwise null plus a search query in "search_query".

@@ -507,3 +507,18 @@ async def test_the_language_change_reaches_the_running_worker(
     engine.set_language("cs")
     assert engine.stt.language == "cs"
     await engine.shutdown()
+
+
+# --- tick tuning (FR-35) ---------------------------------------------------
+
+
+async def test_ticks_can_be_retuned_live(engine: Engine):
+    await engine.startup()
+    engine.set_ticks(interval_s=12, min_new_words=10, burst_words=60)
+    assert engine.config.llm.tick_interval_s == 12
+    assert engine.config.llm.min_new_words == 10
+    assert engine.config.llm.burst_words == 60
+    # The reasoner reads the config on every pass, so nothing needs restarting.
+    assert engine.reasoner.config is engine.config
+    assert engine.status_payload()["llm"]["interval_s"] == 12
+    await engine.shutdown()

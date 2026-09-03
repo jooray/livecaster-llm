@@ -495,10 +495,11 @@
     }
     const pill = $("#llm-status");
     setPill(pill, text, cls);
+    pill.classList.add("clickable");
     pill.title = llm.interval_s
-      ? `A tick every ${llm.interval_s}s once ${llm.min_new_words} new words were said `
-        + `(livecaster.toml: llm.tick_interval_s / llm.min_new_words).`
-      : "";
+      ? `A tick every ${llm.interval_s}s once ${llm.min_new_words} new words were said, `
+        + `and immediately past ${llm.burst_words}. Click to change.`
+      : "Click to change how often the model is asked.";
 
     const u = (state.session && state.session.usage) || {};
     const cached = u.prompt_tokens ? Math.round((u.cached_tokens / u.prompt_tokens) * 100) : 0;
@@ -770,7 +771,71 @@
     else send({ type: "control", action });
   });
 
+  // ---------------------------------------------------------------- splitter
+
+  const SIDE_MIN = 260, SIDE_DEFAULT = 380;
+
+  function setSideWidth(px) {
+    const max = Math.max(SIDE_MIN, window.innerWidth - 420);
+    const width = Math.round(Math.min(max, Math.max(SIDE_MIN, px)));
+    document.documentElement.style.setProperty("--side", width + "px");
+    try { localStorage.setItem("lc.side", String(width)); } catch { /* ignore */ }
+  }
+
+  (function initSplitter() {
+    try {
+      const saved = Number(localStorage.getItem("lc.side"));
+      if (saved) setSideWidth(saved);
+    } catch { /* ignore */ }
+
+    const bar = $("#splitter");
+    let dragging = false;
+    bar.addEventListener("pointerdown", (e) => {
+      dragging = true;
+      bar.setPointerCapture(e.pointerId);
+      bar.classList.add("dragging");
+      document.body.classList.add("resizing");
+      e.preventDefault();
+    });
+    bar.addEventListener("pointermove", (e) => {
+      if (dragging) setSideWidth(window.innerWidth - e.clientX);
+    });
+    const end = (e) => {
+      if (!dragging) return;
+      dragging = false;
+      try { bar.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+      bar.classList.remove("dragging");
+      document.body.classList.remove("resizing");
+      updateEdges();
+    };
+    bar.addEventListener("pointerup", end);
+    bar.addEventListener("pointercancel", end);
+    bar.addEventListener("dblclick", () => { setSideWidth(SIDE_DEFAULT); updateEdges(); });
+  })();
+
+  // ---------------------------------------------------------------- tick settings
+
+  function showTicks() {
+    const llm = state.status.llm || {};
+    $("#tick-interval").value = llm.interval_s ?? 25;
+    $("#tick-min-words").value = llm.min_new_words ?? 25;
+    $("#tick-burst").value = llm.burst_words ?? 120;
+    $("#ticks").showModal();
+  }
+
+  $("#tick-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    send({
+      type: "set_ticks",
+      interval_s: Number($("#tick-interval").value),
+      min_new_words: Number($("#tick-min-words").value),
+      burst_words: Number($("#tick-burst").value),
+    });
+    $("#ticks").close();
+  });
+
   $("#btn-help").addEventListener("click", () => $("#help").showModal());
+  $("#llm-status").addEventListener("click", showTicks);
   $("#btn-density").addEventListener("click", () => setDense(!state.dense));
   setDense(state.dense);
   $("#cost-status").addEventListener("click", showUsage);

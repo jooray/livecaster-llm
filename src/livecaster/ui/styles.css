@@ -128,9 +128,28 @@ button.primary { background: var(--accent); color: #fff; border-color: var(--acc
 main {
   flex: 1;
   display: grid;
-  grid-template-columns: 1fr 380px;
+  /* --side is dragged by #splitter and remembered per browser. */
+  grid-template-columns: 1fr 6px var(--side, 380px);
   min-height: 0;
 }
+
+#splitter {
+  cursor: col-resize;
+  background: var(--line);
+  border: none;
+  padding: 0;
+  border-radius: 0;
+  position: relative;
+}
+#splitter:hover,
+#splitter.dragging { background: var(--accent); }
+/* A 6 px bar is hard to grab; widen the hit area without moving the pixels. */
+#splitter::after {
+  content: "";
+  position: absolute;
+  inset: 0 -5px;
+}
+body.resizing { cursor: col-resize; user-select: none; }
 
 #outline-pane { position: relative; min-height: 0; display: flex; flex-direction: column; }
 
@@ -260,14 +279,11 @@ body:not(.dense) .node.hot .text { -webkit-line-clamp: 4; line-clamp: 4; }
 
 .tabs {
   display: flex;
-  justify-content: space-between;
+  flex-wrap: wrap;     /* a narrow panel wraps to a second row rather than hiding a tab */
   border-bottom: 1px solid var(--line);
-  overflow-x: auto;
-  scrollbar-width: none;
 }
-.tabs::-webkit-scrollbar { display: none; }
 .tab {
-  flex: 0 1 auto;      /* size to the label, shrink only when the row runs out */
+  flex: 1 1 auto;      /* share the row; wrap before anything is cut off */
   border: none;
   border-radius: 0;
   border-bottom: 2px solid transparent;
@@ -372,11 +388,12 @@ kbd {
 /* ---------- tablet ---------- */
 
 @media (max-width: 1100px) {
-  main { grid-template-columns: 1fr 320px; }
+  main { grid-template-columns: 1fr 6px var(--side, 320px); }
 }
 
 @media (max-width: 900px) {
   main { grid-template-columns: 1fr; grid-template-rows: 1fr auto; }
+  #splitter { display: none; }   /* stacked: there is nothing to drag sideways */
   #side { border-left: none; border-top: 1px solid var(--line); max-height: 45vh; }
   .tb-group.buttons { margin-left: 0; }
 }
@@ -439,3 +456,24 @@ kbd {
   background: transparent;
 }
 .lang-choices .chip.active { border-color: var(--accent); color: var(--accent); }
+
+/* ---------- tick settings ---------- */
+
+#tick-form label {
+  display: block;
+  margin: 10px 0;
+  font-size: 15px;
+  color: var(--fg-dim);
+}
+#tick-form input {
+  width: 5.5em;
+  font: inherit;
+  font-size: 15px;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 4px 8px;
+  margin: 0 4px;
+}
+.dialog-actions { display: flex; gap: 8px; margin-top: 16px; }

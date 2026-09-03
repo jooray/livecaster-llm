@@ -487,6 +487,40 @@ class Engine:
     def request_tick(self) -> None:
         self.reasoner.request_tick()
 
+    def set_ticks(self, *, interval_s: float, min_new_words: int, burst_words: int) -> None:
+        """Retune the tick loop live (FR-35).
+
+        The reasoner reads these off the config on every pass, so the change lands
+        on the next tick without restarting anything.
+        """
+        llm = self.config.llm
+        llm.tick_interval_s = float(interval_s)
+        llm.min_new_words = int(min_new_words)
+        llm.burst_words = int(burst_words)
+        self.store.log_event(
+            "ticks",
+            self.clock.now(),
+            interval_s=llm.tick_interval_s,
+            min_new_words=llm.min_new_words,
+            burst_words=llm.burst_words,
+        )
+        self.store.emit(
+            "toast",
+            {
+                "level": "success",
+                "text": (
+                    f"Ticking every {llm.tick_interval_s:g}s past {llm.min_new_words} new words "
+                    f"({llm.burst_words} for an immediate one)."
+                ),
+            },
+        )
+        log.info(
+            "tick loop retuned: %.0fs / %d words / burst %d",
+            llm.tick_interval_s,
+            llm.min_new_words,
+            llm.burst_words,
+        )
+
     def set_language(self, language: str | None) -> None:
         """Lock (or release) the transcription language, live (FR-34).
 
@@ -583,6 +617,7 @@ class Engine:
             | {
                 "interval_s": self.config.llm.tick_interval_s,
                 "min_new_words": self.config.llm.min_new_words,
+                "burst_words": self.config.llm.burst_words,
             },
             "clock": round(self.clock.now(), 2),
             "session_status": self.store.session.status,

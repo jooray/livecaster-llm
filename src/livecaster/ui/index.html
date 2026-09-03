@@ -46,6 +46,8 @@
     <div class="edge-indicator bottom hidden" id="edge-down">▼ <span>0</span> hot</div>
   </section>
 
+  <div id="splitter" role="separator" aria-orientation="vertical" title="Drag to resize · double-click to reset"></div>
+
   <aside id="side">
     <nav class="tabs" id="tabs">
       <button class="tab active" data-tab="now">Now</button>
@@ -90,6 +92,23 @@
 
 <div id="toasts"></div>
 
+<dialog id="ticks">
+  <h3>How often the model is asked</h3>
+  <p class="muted">Takes effect on the next tick. Persist it in <code>livecaster.toml</code>
+    under <code>[llm]</code>.</p>
+  <form id="tick-form">
+    <label>Every <input id="tick-interval" type="number" min="5" max="600" step="1"> seconds</label>
+    <label>…but only once <input id="tick-min-words" type="number" min="0" max="500" step="5">
+      new words were said</label>
+    <label>…and immediately past <input id="tick-burst" type="number" min="10" max="2000" step="10">
+      new words</label>
+    <div class="dialog-actions">
+      <button type="submit" class="primary">Apply</button>
+      <button type="button" onclick="this.closest('dialog').close()">Cancel</button>
+    </div>
+  </form>
+</dialog>
+
 <dialog id="lang">
   <h3>Transcription language</h3>
   <p id="lang-note" class="muted"></p>
@@ -114,6 +133,9 @@
     <tr><td><kbd>m</kbd></td><td>sync mark</td></tr>
     <tr><td><kbd>t</kbd></td><td>toggle transcript panel</td></tr>
     <tr><td><kbd>d</kbd></td><td>compact / full text</td></tr>
+    <tr><td>drag the divider</td><td>resize the panels (double-click to reset)</td></tr>
+    <tr><td>click the LLM pill</td><td>how often the model is asked</td></tr>
+    <tr><td>click the 🌐 pill</td><td>transcription language</td></tr>
     <tr><td><kbd>space</kbd></td><td>pause / resume</td></tr>
     <tr><td><kbd>?</kbd></td><td>this help</td></tr>
   </table>

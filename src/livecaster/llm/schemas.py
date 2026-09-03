@@ -216,7 +216,7 @@ LABEL_KEYS = [
     "titles",
     "description_short",
     "description_long",
-    "social",
+    "social_post",
     "quotes",
     "mentions",
     "promises",
@@ -231,7 +231,7 @@ ENGLISH_LABELS = {
     "titles": "Title candidates",
     "description_short": "Short description",
     "description_long": "Long description",
-    "social": "Social posts",
+    "social_post": "Social post",
     "quotes": "Key quotes",
     "mentions": "Mentions and links",
     "promises": "Promises made on air",
@@ -256,11 +256,6 @@ class TitleCandidate(BaseModel):
     style: str = "descriptive"
 
 
-class SocialPost(BaseModel):
-    platform: str = "generic"
-    text: str = ""
-
-
 class Quote(BaseModel):
     t: float = 0.0
     speaker: str | None = None
@@ -282,7 +277,9 @@ class FinalAnalysis(BaseModel):
     titles: list[TitleCandidate] = Field(default_factory=list)
     description_short: str = ""
     description_long: str = ""
-    social: list[SocialPost] = Field(default_factory=list)
+    #: One post, written to work as-is on X, Nostr, LinkedIn and Facebook. Per-platform
+    #: variants and hashtags were dropped on the host's instruction (D23).
+    social_post: str = ""
     quotes: list[Quote] = Field(default_factory=list)
     mentions: list[TickMention] = Field(default_factory=list)
     promises: list[Promise] = Field(default_factory=list)
@@ -328,15 +325,7 @@ FINAL_SCHEMA: dict[str, Any] = _obj(
         ),
         "description_short": {"type": "string", "maxLength": 300},
         "description_long": {"type": "string", "maxLength": 1500},
-        "social": _arr(
-            _obj(
-                {
-                    "platform": {"type": "string", "enum": ["x", "linkedin", "generic"]},
-                    "text": {"type": "string", "maxLength": 1200},
-                }
-            ),
-            4,
-        ),
+        "social_post": {"type": "string", "maxLength": 1400},
         "quotes": _arr(
             _obj(
                 {

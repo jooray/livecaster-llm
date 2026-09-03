@@ -29,9 +29,7 @@ def render(markdown: str, method: str = "parse") -> str:
     process.stdin.on('data', (d) => (src += d));
     process.stdin.on('end', () => process.stdout.write(ctx.window.marked.{method}(src)));
     """
-    out = subprocess.run(
-        ["node", "-e", script], input=markdown, capture_output=True, text=True, check=True
-    )
+    out = subprocess.run(["node", "-e", script], input=markdown, capture_output=True, text=True, check=True)
     return out.stdout
 
 

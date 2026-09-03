@@ -200,8 +200,11 @@ Only the outline text, transcript text and derived state go to Venice. Audio and
 stay on the machine. Venice's injected system prompt is disabled and web search is off (except the
 optional link-resolution step in the wrap-up).
 
-A two-hour episode costs about **$0.37**: roughly 290 ticks at ~$0.001 each (96 % of every prompt
-comes back from Venice's cache) plus ~$0.08 for the wrap-up. Livecaster ticks with
+A two-hour episode costs about **$0.50**. Measured on real sessions: a tick averages **$0.0009**
+(most of every prompt comes back from Venice's cache), so up to 290 of them come to ~$0.27; the
+Sonnet 5 wrap-up measured **$0.14–0.20** on short episodes and is dominated by the ~9–12k tokens it
+writes, not by the transcript it reads. A whole six-minute live session cost **$0.17**.
+Livecaster ticks with
 `deepseek-v4-flash-0731-fast`, which answers in ~9 s instead of the plain model's ~38 s, and wraps
 up on `claude-sonnet-5`, where latency does not matter and the writing does. `DECISIONS.md` (D8,
 D17) has the measurements. To trade quality back for cost:
@@ -219,8 +222,8 @@ prepaid Venice credits:
 
 | Setting | Default | Notes |
 |---|---|---|
-| `llm.tick_model` | `deepseek-v4-flash-0731-fast` | ~9 s per tick, ~$0.001 each |
-| `llm.final_model` | `claude-sonnet-5` | Sonnet 5 through Venice; ~$0.08 per episode |
+| `llm.tick_model` | `deepseek-v4-flash-0731-fast` | 3–8 s per tick, ~$0.0009 each |
+| `llm.final_model` | `claude-sonnet-5` | Sonnet 5 through Venice; $0.14–0.20 per episode |
 
 To bill Anthropic or OpenAI directly instead, prefix the model and supply that provider's key:
 

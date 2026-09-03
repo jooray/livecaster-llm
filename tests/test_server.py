@@ -142,6 +142,7 @@ def test_ui_files_parse_as_expected():
     assert "renderResult" in app_js and "/api/final/" in app_js  # exports shown in the UI
     assert "setDense" in app_js and "glance(" in app_js  # compact live surface (D22)
     assert "set_language" in app_js  # the language can be locked from the top bar
+    assert "set_ticks" in app_js and "setSideWidth" in app_js
     css = (UI_DIR / "styles.css").read_text(encoding="utf-8")
     assert "--font: 18px" in css
     for state in ["warm", "touched", "covered", "skipped", "hot", "pinned", "current", "selected"]:
@@ -150,6 +151,7 @@ def test_ui_files_parse_as_expected():
     assert json.dumps("edge-up")[1:-1] in html
     assert "sparkline" in html and "usage-body" in html
     assert "lang-status" in html and "btn-density" in html and "result-body" in html
+    assert "splitter" in html and "tick-form" in html
 
 
 # --- the wrap-up's files, served to the UI ---------------------------------
@@ -196,3 +198,26 @@ def test_websocket_sets_the_language(client):
         seen = [ws.receive_json() for _ in range(3)]
     assert any(m.get("type") == "patch" and m.get("language") == "sk" for m in seen)
     assert client.app.state.test_engine.config.stt.language == "sk"
+
+
+def test_websocket_retunes_the_tick_loop(client):
+    engine = client.app.state.test_engine
+    with client.websocket_connect("/ws") as ws:
+        ws.receive_json()  # hello
+        ws.receive_json()  # state
+        ws.send_json({"type": "set_ticks", "interval_s": 15, "min_new_words": 40, "burst_words": 200})
+        ws.receive_json()
+    assert engine.config.llm.tick_interval_s == 15
+    assert engine.config.llm.min_new_words == 40
+    assert engine.config.llm.burst_words == 200
+
+
+def test_api_control_rejects_an_absurd_tick_interval(client):
+    engine = client.app.state.test_engine
+    before = engine.config.llm.tick_interval_s
+    response = client.post(
+        "/api/control",
+        json={"type": "set_ticks", "interval_s": 0.2, "min_new_words": 25, "burst_words": 120},
+    )
+    assert response.status_code >= 400
+    assert engine.config.llm.tick_interval_s == before
