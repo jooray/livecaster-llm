@@ -239,3 +239,29 @@ async def test_mock_serves_the_final_and_preflight_fixtures(fixtures: Path):
     assert final.language == "sk" and final.titles
     preflight, _ = await mock.complete_json("preflight", [{"role": "user", "content": "x"}])
     assert preflight.nodes[0].triggers
+
+
+async def test_empty_content_is_retried_and_logged(tmp_path: Path):
+    """An empty answer is the reasoning-budget failure mode: retry it, and record it."""
+    calls: list[int] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(1)
+        if len(calls) == 1:
+            return httpx.Response(200, json={"choices": [{"message": {"content": ""}}], "usage": {}})
+        return _response(VALID_TICK)
+
+    client = _client(handler, tmp_path)
+    result, _ = await client.complete_json("tick", [{"role": "user", "content": "x"}], model="m")
+    assert len(calls) == 2
+    assert isinstance(result, TickResult)
+    assert "empty content" in (tmp_path / "llm.jsonl").read_text()
+
+
+async def test_two_empty_answers_raise(tmp_path: Path):
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"choices": [{"message": {"content": ""}}], "usage": {}})
+
+    client = _client(handler, tmp_path)
+    with pytest.raises(LLMError, match="empty content"):
+        await client.complete_json("tick", [{"role": "user", "content": "x"}], model="m")

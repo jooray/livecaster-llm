@@ -141,6 +141,14 @@ class Transcript:
 
     @classmethod
     def load_jsonl(cls, path: str | Path, direct_channels: Iterable[str] = ()) -> Transcript:
+        """Rebuild a transcript from disk, re-running the cross-talk dedupe.
+
+        A segment is written to ``transcript.jsonl`` as soon as it is transcribed,
+        which is before the next channel's version of the same sentence can arrive
+        to displace it. The file therefore holds both halves of every duplicate,
+        and a resumed session that simply read them back would hear the guest twice.
+        Replaying the decision on load gives the same transcript the live session had.
+        """
         t = cls(direct_channels)
         p = Path(path)
         if not p.is_file():
@@ -153,9 +161,6 @@ class Transcript:
                 seg = Segment.model_validate(json.loads(line))
             except Exception:
                 continue
-            t.segments.append(seg)
-            t._by_id[seg.id] = seg
-            t._arrival[seg.id] = len(t._arrival)
-        t.segments.sort(key=lambda s: (s.t0, t._arrival.get(s.id, 0)))
+            t.append(seg)
         t.adopt_counter()
         return t

@@ -185,3 +185,29 @@ def test_channels_are_copied_into_the_session(tmp_path: Path, osnova_path: Path,
     assert store.session.channels[1].is_direct is True
     assert store.session.mode == "remote"
     store.close()
+
+
+def test_reloading_a_transcript_repeats_the_crosstalk_dedupe(tmp_path: Path):
+    """The file keeps both halves of a duplicate, so a resume must drop one again."""
+    from livecaster.session.models import Segment
+    from livecaster.session.transcript import Transcript
+
+    path = tmp_path / "transcript.jsonl"
+    live = Transcript(direct_channels=["Guest"])
+    kept = []
+    for seg in (
+        Segment(id="S1", channel="Host", speaker="Host", t0=10, t1=13, text="Dych je veľmi dôležitý"),
+        Segment(id="S2", channel="Guest", speaker="Guest", t0=10.1, t1=13.1, text="Dych je veľmi dôležitý"),
+    ):
+        # Every segment reaches the file; only the survivor stays in memory.
+        with path.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(seg.model_dump(), ensure_ascii=False) + "\n")
+        if live.append(seg) is not None:
+            kept.append(seg.id)
+
+    assert [s.id for s in live.segments] == ["S2"], "the direct channel wins live"
+    assert len(path.read_text(encoding="utf-8").strip().splitlines()) == 2
+
+    reloaded = Transcript.load_jsonl(path, ["Guest"])
+    assert [s.id for s in reloaded.segments] == ["S2"]
+    assert reloaded.dropped_crosstalk == 1

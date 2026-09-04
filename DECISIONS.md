@@ -306,3 +306,70 @@ her work"), and the schema's `maxLength`s came down hard: `reason` 200 → 90, `
 `current.summary` 200 → 110. The UI shows rank + label only; the reason and the segue appear when
 an item is clicked, and `d` flips the whole surface to full text at once. Outline lines clamp to
 two rendered lines, four when hot or selected. The map marks; the words are one click away.
+
+## D23: Session time is recording time
+
+The clock used to start when the process started. Between launching the app and pressing Start
+there is a microphone to pick and a guest to greet, and every one of those seconds went into the
+session clock, so every timestamp in the exports was ahead of the recording by however long the
+setup took.
+
+`SessionClock` now takes `paused=True` and the engine starts it that way. `start_capture` resumes
+it after the pipelines are up, `finish` pauses it again, and a start that fails never moves it
+(the clock is resumed after the pipelines start, not before, so a device that refuses to open
+costs nothing). Record again resumes where the previous take stopped. The sync mark is unaffected:
+it lines the timeline up with an external recorder, which is a different problem.
+
+## D24: An empty session does not get show notes
+
+Found by reading the code, not on air. `finish` ran the wrap-up unconditionally, so a session
+where nothing was transcribed still sent the final model an outline, an empty transcript and a
+request for a summary with chapters and quotes. Whatever came back would be invention, and it
+would be billed at the usual wrap-up rate (D8, D17). `finish` now checks first: it returns no
+paths and sets `finish_error` to say why.
+
+## D25: Pre-flight moved into the background
+
+The pre-flight pass ran before the server started, so `livecaster run` sat silent for as long as
+the model took and only then opened a browser. The map does not need it: pre-flight fills in
+suggested questions and the fast lane's trigger phrases, both of which are additions to a screen
+that already works. It now runs as a task once the loop is up, rebuilds the fast lane when it
+lands, and toasts either way. The UI opens immediately.
+
+## D26: An empty answer is a retry, not an exception
+
+`_content_of` raised straight out of `complete_json` when a model returned no content, which meant
+two things: no retry, and no line in `llm.jsonl`. It is also the one failure mode most worth having
+on disk, because it is what DeepSeek V4 Flash does when reasoning eats the token budget (D8), and
+it was the only error path in `complete_json` that wrote nothing. Both clients now treat it exactly
+like invalid JSON: log it, retry once, raise on the second failure.
+
+## D27: `check` resolves the microphones
+
+`check` listed the audio devices on the machine and left the reader to compare that list against
+`livecaster.toml` by eye. Since macOS renames devices when you plug things in differently (D20),
+a config can point at a name that no longer exists, and the first thing that noticed was Start.
+`check` now resolves every configured channel (device name or index, AudioTee process, file) and
+fails when one does not resolve. On the first run against this repository's own `livecaster.toml`
+it reported the Bluetooth headset named there as missing, because it was not connected.
+
+## D28: The WebSocket checks its origin; the transcript survives a resume
+
+Two problems found by reading the remote-mode and browser paths.
+
+The same-origin policy does not cover WebSockets. `/ws` accepted every connection and every
+message on it, including `control: finish`, so any page open in a tab during a recording could
+have ended the session or struck topics off the map. The endpoint now compares the `Origin` header
+against the request's own `Host`, which keeps a tablet on the LAN working (`ui.host = "0.0.0.0"`)
+while refusing a stranger. A client that sends no `Origin` at all is not a browser and is left
+alone, so `curl` and the tests are unaffected.
+
+Cross-talk dedupe (FR-14) only ran live. A segment is appended to `transcript.jsonl` the moment it
+is transcribed, which is before the other channel's copy of the same sentence can arrive and
+displace it, so the file holds both halves of every duplicate by design. `Transcript.load_jsonl`
+read those lines straight into the list, meaning `--resume` and `wrapup` on a remote session heard
+the guest twice for every sentence that had been deduplicated. Loading now goes through `append`,
+which repeats the decision and reaches the same transcript the live session had.
+
+Neither of these is reachable in single-microphone live mode, which is why both survived a
+working demo.

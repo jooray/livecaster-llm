@@ -210,10 +210,20 @@ async def test_refusal_becomes_an_llm_error(tmp_path):
     assert "refusal:cyber" in (tmp_path / "llm.jsonl").read_text()
 
 
-async def test_empty_content_is_reported():
-    client, _ = _client([FakeMessage("   ")])
+async def test_empty_content_is_retried_then_reported(tmp_path):
+    """An empty answer is the reasoning-budget failure mode, so it gets the retry too."""
+    client, sdk = _client([FakeMessage("   "), FakeMessage("  ")], tmp_path)
     with pytest.raises(LLMError, match="empty content"):
         await client.complete_json("tick", [{"role": "user", "content": "x"}], model="m")
+    assert len(sdk.messages.created) == 2
+    assert "empty content" in (tmp_path / "llm.jsonl").read_text()
+
+
+async def test_empty_content_recovers_on_the_retry(tmp_path):
+    client, sdk = _client([FakeMessage(""), FakeMessage(VALID_TICK)], tmp_path)
+    result, _ = await client.complete_json("tick", [{"role": "user", "content": "x"}], model="m")
+    assert len(sdk.messages.created) == 2
+    assert result.current.node_id == "T5"
 
 
 async def test_invalid_json_retries_once_then_raises(tmp_path):

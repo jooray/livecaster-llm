@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 from pathlib import Path
 
 import numpy as np
@@ -521,4 +522,117 @@ async def test_ticks_can_be_retuned_live(engine: Engine):
     # The reasoner reads the config on every pass, so nothing needs restarting.
     assert engine.reasoner.config is engine.config
     assert engine.status_payload()["llm"]["interval_s"] == 12
+    await engine.shutdown()
+
+
+# --- session time is recording time (the clock starts at Start) -------------
+
+
+def test_a_paused_clock_stands_still_until_it_is_resumed():
+    """Between launch and Start nothing is being recorded, so nothing should elapse."""
+    clock = SessionClock(paused=True)
+    time.sleep(0.05)
+    assert clock.now() == 0.0
+    clock.resume()
+    time.sleep(0.05)
+    assert clock.now() > 0.0
+
+
+def test_a_paused_clock_keeps_a_resumed_session_offset():
+    clock = SessionClock(offset=120.0, paused=True)
+    time.sleep(0.03)
+    assert clock.now() == pytest.approx(120.0, abs=1e-6)
+
+
+async def test_the_clock_runs_only_between_start_and_finish(
+    tmp_path: Path, osnova_path: Path, config: Config, fixtures: Path, monkeypatch
+):
+    from livecaster.stt.mock import MockEngine
+
+    wav = write_wav(tmp_path / "tone.wav", seconds=1.0)
+    config.audio.channels = [ChannelConfig(name="Room", source=f"file:{wav}", record=False)]
+    config.audio.record = False
+    config.stt.engine = "mock"
+    monkeypatch.setattr("livecaster.engine.select_engine", lambda *a, **k: MockEngine(["ahoj"]))
+    store = create_session(osnova_path, config, mode="replay", base_dir=tmp_path / "sessions")
+
+    engine = Engine(store, config, MockLLM(fixtures / "tick_responses"))  # a real SessionClock
+    await engine.startup()
+    time.sleep(0.05)
+    assert engine.clock.now() == 0.0, "time must not pass before Start"
+
+    await engine.start_capture()
+    time.sleep(0.05)
+    assert engine.clock.now() > 0.0
+
+    await engine.finish()
+    stopped = engine.clock.now()
+    time.sleep(0.05)
+    assert engine.clock.now() == stopped, "time must not pass after Finish"
+    await engine.shutdown()
+
+
+async def test_a_failed_start_does_not_start_the_clock(
+    tmp_path: Path, osnova_path: Path, config: Config, fixtures: Path
+):
+    config.audio.channels = [ChannelConfig(name="Host", source=f"file:{tmp_path / 'missing.wav'}")]
+    config.audio.record = False
+    config.stt.engine = "mock"
+    store = create_session(osnova_path, config, mode="live", base_dir=tmp_path / "sessions")
+    engine = Engine(store, config, MockLLM(fixtures / "tick_responses"))
+    await engine.startup()
+    with pytest.raises(FileNotFoundError):
+        await engine.start_capture()
+    time.sleep(0.03)
+    assert engine.clock.now() == 0.0
+    await engine.shutdown()
+
+
+# --- a session with nothing in it ------------------------------------------
+
+
+async def test_finish_without_a_transcript_writes_nothing(engine: Engine):
+    """An empty session used to pay for show notes about an episode that never happened."""
+    await engine.startup()
+    engine.store.session.status = "running"
+    paths = await engine.finish()
+    assert paths == {}
+    assert engine.store.session.status == "finished"
+    assert "nothing was transcribed" in (engine.finish_error or "")
+    assert not (engine.store.final_dir / "show_notes.md").exists()
+    await engine.shutdown()
+
+
+# --- the status payload before anything is running --------------------------
+
+
+async def test_status_reports_the_engine_before_capture_starts(
+    store, config: Config, fixtures: Path, monkeypatch
+):
+    """The language pill has to know whether the engine can be forced, from the first frame."""
+    from livecaster.stt.mock import MockEngine
+
+    config.stt.engine = "mock"
+    monkeypatch.setattr("livecaster.engine.select_engine", lambda *a, **k: MockEngine())
+    engine = Engine(store, config, MockLLM(fixtures / "tick_responses"), clock=ManualClock())
+    stt = engine.status_payload()["stt"]
+    assert stt["engine"] == "mock"
+    assert stt["can_force_language"] is True
+    assert stt["queue"] == 0
+
+
+async def test_preflight_runs_in_the_background(store, config: Config, fixtures: Path):
+    """The map has to be on screen while the model is still thinking about it."""
+    engine = Engine(store, config, MockLLM(fixtures / "tick_responses"), clock=ManualClock())
+    engine.preflight_pending = True
+    await engine.startup()
+    assert engine.preflight_pending is False
+    for _ in range(100):
+        if store.session.preflight is not None:
+            break
+        await asyncio.sleep(0.02)
+    assert store.session.preflight is not None
+    assert store.session.preflight.nodes
+    # The fast lane must pick up the trigger phrases the pass just produced.
+    assert engine.fastlane.triggers
     await engine.shutdown()

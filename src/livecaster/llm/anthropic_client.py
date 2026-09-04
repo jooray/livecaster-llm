@@ -156,15 +156,14 @@ class AnthropicClient:
                 detail = getattr(getattr(message, "stop_details", None), "category", "unknown")
                 self._log(kind, attempt_request, _dump(message), usage, latency, error=f"refusal:{detail}")
                 raise LLMError(f"Claude declined this request (category {detail})")
-            content = _text_of(message)
             try:
-                parsed = model_cls.model_validate_json(content)
-            except (ValidationError, ValueError) as exc:
+                parsed = model_cls.model_validate_json(_text_of(message))
+            except (LLMError, ValidationError, ValueError) as exc:
                 last_error = str(exc)[:1200]
                 self._log(kind, attempt_request, _dump(message), usage, latency, error=last_error)
                 if attempt == 1:
                     raise LLMError(f"invalid JSON from model: {last_error}") from exc
-                log.warning("%s: schema validation failed, retrying once", kind)
+                log.warning("%s: unusable answer (%s), retrying once", kind, last_error[:120])
                 continue
             self._log(kind, attempt_request, _dump(message), usage, latency)
             return parsed, usage

@@ -221,3 +221,29 @@ def test_api_control_rejects_an_absurd_tick_interval(client):
     )
     assert response.status_code >= 400
     assert engine.config.llm.tick_interval_s == before
+
+
+# --- the WebSocket is a control channel, so it checks who opened it ---------
+
+
+def test_websocket_accepts_its_own_origin(client):
+    with client.websocket_connect("/ws", headers={"origin": "http://testserver"}) as ws:
+        assert ws.receive_json()["type"] == "hello"
+
+
+def test_websocket_refuses_another_origin(client):
+    """Any page open in the host's browser could otherwise press Finish mid-episode."""
+    from starlette.websockets import WebSocketDisconnect
+
+    with pytest.raises(WebSocketDisconnect):
+        with client.websocket_connect("/ws", headers={"origin": "https://evil.example"}) as ws:
+            ws.receive_json()
+
+
+def test_same_origin_allows_a_client_without_an_origin_header():
+    from livecaster.server.app import same_origin
+
+    class FakeWS:
+        headers: dict[str, str] = {}
+
+    assert same_origin(FakeWS()) is True

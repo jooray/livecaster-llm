@@ -18,6 +18,7 @@ from livecaster.audio.segmenter import Segmenter, Utterance
 from livecaster.audio.sources import make_source
 from livecaster.audio.vad import make_vad
 from livecaster.config import ChannelConfig, Config
+from livecaster.llm.preflight import run_preflight
 from livecaster.llm.reasoner import Reasoner
 from livecaster.llm.wrapup import run_wrapup
 from livecaster.log import get_logger
@@ -188,7 +189,9 @@ class Engine:
         self.store = store
         self.config = config
         self.client = client
-        self.clock = clock or SessionClock()
+        # Session time is recording time: it stands still until the first Start and
+        # between Finish and Record again, so the SRT lines up with the WAV backup.
+        self.clock = clock or SessionClock(paused=True)
         self.replay_speed = replay_speed
         self.on_replay_finished = on_replay_finished
         self.autostart = autostart
@@ -205,6 +208,13 @@ class Engine:
         self.finish_error: str | None = None
         self._sources_finished = 0
         self._outline_reloads = 0
+        self._finish_task: asyncio.Task[dict[str, str]] | None = None
+        #: (engine name, can_force_language) probed once, so the UI's language pill
+        #: is honest before Start as well as after it.
+        self._stt_facts: tuple[str, bool | None] | None = None
+        #: Set by the CLI when the pre-flight pass should run once the loop is up,
+        #: so the UI opens at once instead of waiting on the model.
+        self.preflight_pending = False
 
     # --- lifecycle ---------------------------------------------------------
 
@@ -217,8 +227,38 @@ class Engine:
         self._tasks.append(asyncio.create_task(self.store.snapshot_loop(), name="snapshot"))
         self._tasks.append(asyncio.create_task(self._warm_loop(), name="warm-decay"))
         self.reasoner.start()
+        if self.preflight_pending:
+            self.preflight_pending = False
+            self._tasks.append(asyncio.create_task(self._preflight_in_background(), name="preflight"))
         if self.autostart:
             await self.start_capture()
+
+    async def _preflight_in_background(self) -> None:
+        """One LLM call for questions and trigger phrases, while the host already sees the map."""
+        self.store.emit(
+            "toast", {"level": "info", "text": "Pre-flight: asking the model for questions and triggers…"}
+        )
+        try:
+            pf = await run_preflight(self.store, self.client, self.config)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # pragma: no cover - run_preflight already swallows failures
+            log.warning("pre-flight crashed: %s", exc)
+            pf = None
+        if pf is None:
+            self.store.emit(
+                "toast", {"level": "warn", "text": "Pre-flight failed; the map works without it."}
+            )
+            return
+        self.fastlane.rebuild(self.store.outline, pf)
+        # The pass may have settled the language, which is baked into the tick prompt.
+        self.reasoner.invalidate_prompt()
+        self.store.mark_dirty()
+        self.store.snapshot(force=True)
+        self.store.emit("state", self.store.session)
+        self.store.emit(
+            "toast", {"level": "success", "text": f"Pre-flight done: {len(pf.nodes)} items annotated."}
+        )
 
     def _build_stt(self) -> STTWorker:
         engine = select_engine(
@@ -291,6 +331,8 @@ class Engine:
             self.store.log_event("start_failed", self.clock.now(), error=str(exc)[:300])
             self.store.emit("toast", {"level": "error", "text": f"Cannot start capture: {exc}"})
             raise
+        # Only now is anything actually being recorded, so only now does time pass.
+        self.clock.resume()
         session.status = "running"
         self.store.mark_dirty()
         self.store.log_event("start", self.clock.now())
@@ -331,26 +373,33 @@ class Engine:
             self.store.emit("status_changed", "finishing")
             self.store.emit("toast", {"level": "info", "text": "Finishing: flushing audio and transcribing…"})
             now = self.clock.now()
+            # Nothing is being recorded from here on; Record again resumes the clock.
+            self.clock.pause()
             session.duration_s = max(session.duration_s, now, self.transcript.duration())
             for pipeline in self.channels:
                 await asyncio.to_thread(pipeline.stop)
             if self.stt is not None:
                 await asyncio.to_thread(self.stt.stop, True)
             await self.reasoner.stop()
-            if self.transcript.segments:
+            paths: dict[str, str] = {}
+            if not self.transcript.segments:
+                # An empty transcript would still cost a wrap-up call and produce notes
+                # about nothing. Say so instead.
+                self.finish_error = "nothing was transcribed, so there are no show notes to write"
+                log.warning("finish: %s", self.finish_error)
+            else:
                 self.store.emit("toast", {"level": "info", "text": "Running the final tick…"})
                 try:
                     await self.reasoner.tick(now)
                 except Exception as exc:  # pragma: no cover - already logged
                     log.warning("final tick failed: %s", exc)
-            self.store.emit("toast", {"level": "info", "text": "Writing show notes…"})
-            try:
-                paths = await run_wrapup(self.store, self.transcript, self.client, self.config)
-                self.finish_result = paths
-            except Exception as exc:
-                self.finish_error = f"{type(exc).__name__}: {exc}"
-                log.error("wrap-up failed: %s", self.finish_error)
-                paths = {}
+                self.store.emit("toast", {"level": "info", "text": "Writing show notes…"})
+                try:
+                    paths = await run_wrapup(self.store, self.transcript, self.client, self.config)
+                    self.finish_result = paths
+                except Exception as exc:
+                    self.finish_error = f"{type(exc).__name__}: {exc}"
+                    log.error("wrap-up failed: %s", self.finish_error)
             session.status = "finished"
             self.store.mark_dirty()
             self.store.snapshot(force=True)
@@ -368,6 +417,16 @@ class Engine:
             )
             self._finished.set()
             return paths
+
+    def finish_in_background(self) -> asyncio.Task[dict[str, str]]:
+        """Finish without blocking the caller (the WebSocket handler).
+
+        The task is kept on the engine: a bare ``create_task`` can be garbage-collected
+        in the middle of the wrap-up.
+        """
+        if self._finish_task is None or self._finish_task.done():
+            self._finish_task = asyncio.create_task(self.finish(), name="finish")
+        return self._finish_task
 
     async def _teardown_capture(self, *, drain: bool = False) -> None:
         """Stop and forget every pipeline. Safe to call when nothing is running."""
@@ -603,16 +662,37 @@ class Engine:
 
     # --- status ------------------------------------------------------------
 
+    def _stt_preview(self) -> dict[str, Any]:
+        """What the STT layer will be, before a worker exists to ask.
+
+        Building an engine object does not load any weights, so this is cheap; the
+        answer is cached because the status payload goes out five times a second.
+        """
+        if self._stt_facts is None:
+            name, can_force = self.config.stt.engine, None
+            try:
+                probe = select_engine(
+                    self.config.stt.engine,
+                    self.config.stt.model,
+                    self.config.stt.language,
+                    self.config.stt.cpu_threads,
+                )
+                name, can_force = probe.name, probe.can_force_language
+            except Exception:  # pragma: no cover - a missing extra is reported at Start
+                log.debug("cannot preview the STT engine", exc_info=True)
+            self._stt_facts = (name, can_force)
+        name, can_force = self._stt_facts
+        return {
+            "engine": name,
+            "queue": 0,
+            "language": self.config.stt.language,
+            "can_force_language": can_force,
+        }
+
     def status_payload(self) -> dict[str, Any]:
         return {
             "audio": {p.cfg.name: round(p.level_db, 1) for p in self.channels},
-            "stt": self.stt.status()
-            if self.stt
-            else {
-                "engine": self.config.stt.engine,
-                "queue": 0,
-                "language": self.config.stt.language,
-            },
+            "stt": self.stt.status() if self.stt else self._stt_preview(),
             "llm": self.reasoner.status.as_dict()
             | {
                 "interval_s": self.config.llm.tick_interval_s,

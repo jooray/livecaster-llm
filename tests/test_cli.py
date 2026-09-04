@@ -212,3 +212,42 @@ def test_wrapup_re_runs_on_an_existing_session(tmp_path: Path, osnova_path: Path
     assert (session_dir / "final" / "show_notes.md").is_file()
     state = json.loads((session_dir / "session.json").read_text())
     assert state["final_paths"]["show_notes"].endswith("show_notes.md")
+
+
+# --- pre-flight checks that used to fail on air instead --------------------
+
+
+def test_port_in_use_sees_a_listening_socket():
+    import socket
+
+    from livecaster.cli import _port_in_use
+
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        sock.listen()
+        port = sock.getsockname()[1]
+        assert _port_in_use("127.0.0.1", port) is True
+    assert _port_in_use("127.0.0.1", port) is False
+
+
+def test_check_channels_flags_a_missing_file(tmp_path: Path):
+    from livecaster.cli import _check_channels
+    from livecaster.config import ChannelConfig, Config
+
+    cfg = Config()
+    cfg.audio.channels = [ChannelConfig(name="Host", source=f"file:{tmp_path / 'nope.wav'}")]
+    assert _check_channels(cfg) is False
+
+    real = tmp_path / "yes.wav"
+    real.write_bytes(b"RIFF")
+    cfg.audio.channels = [ChannelConfig(name="Host", source=f"file:{real}")]
+    assert _check_channels(cfg) is True
+
+
+def test_check_channels_rejects_an_unknown_scheme():
+    from livecaster.cli import _check_channels
+    from livecaster.config import ChannelConfig, Config
+
+    cfg = Config()
+    cfg.audio.channels = [ChannelConfig(name="Host", source="bluetooth:magic")]
+    assert _check_channels(cfg) is False

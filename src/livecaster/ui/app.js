@@ -14,6 +14,7 @@
     buildId: window.BUILD_ID,
     status: {},
     connected: false,
+    resultText: "",
     // Live, the host reads with one eye. Everything the model says beyond a label
     // is hidden until asked for; `d` flips the whole surface to the full text.
     dense: localStorage.getItem("lc.dense") === "1",
@@ -634,6 +635,7 @@
     $("#btn-pause").classList.toggle("hidden", status !== "running");
     $("#btn-resume").classList.toggle("hidden", status !== "paused");
     $("#btn-finish").classList.toggle("hidden", status === "finished" || status === "finishing");
+    $("#busy").classList.toggle("hidden", status !== "finishing");
   }
 
   // ---------------------------------------------------------------- toasts
@@ -666,12 +668,14 @@
 
   async function showResult(name) {
     const body = $("#result-body");
-    for (const b of document.querySelectorAll("#result-files button")) {
+    for (const b of document.querySelectorAll("#result-files .chip[data-name]")) {
       b.classList.toggle("active", b.dataset.name === name);
     }
     body.textContent = "loading…";
+    state.resultText = "";
     try {
       const text = await (await fetch(`/api/final/${encodeURIComponent(name)}`)).text();
+      state.resultText = text;
       if (name.endsWith("srt") || name === "transcript_srt") {
         body.innerHTML = "";
         body.append(el("pre", "", text));
@@ -698,6 +702,17 @@
       b.addEventListener("click", () => showResult(name));
       files.append(b);
     }
+    // Show notes exist to be pasted somewhere else; do not make that a trip to disk.
+    const copy = el("button", "chip copy", "⧉ Copy");
+    copy.title = "Copy the file shown below";
+    copy.addEventListener("click", () => {
+      if (!state.resultText) return;
+      navigator.clipboard?.writeText(state.resultText).then(
+        () => toast("success", "Copied to the clipboard"),
+        () => toast("error", "The browser refused clipboard access"),
+      );
+    });
+    files.append(copy);
     if (dir) {
       const p = el("div", "result-dir", dir);
       p.title = "click to copy";
@@ -738,7 +753,7 @@
     else if (key === "x" && state.selected) { toggleSkipped(state.selected); e.preventDefault(); }
     else if (key === "p" && state.selected) { togglePin(state.selected); e.preventDefault(); }
     else if (key === "m") { send({ type: "sync_mark" }); e.preventDefault(); }
-    else if (key === "t") { showTab("transcript"); e.preventDefault(); }
+    else if (key === "t") { toggleTab("transcript"); e.preventDefault(); }
     else if (key === "d") { setDense(!state.dense); e.preventDefault(); }
     else if (key === " ") {
       const status = (state.session && state.session.status) || "idle";
@@ -755,6 +770,11 @@
   });
 
   // ------------------------------------------------------------------ chrome
+
+  function toggleTab(name) {
+    const active = document.querySelector(".tab.active");
+    showTab(active && active.dataset.tab === name ? "now" : name);
+  }
 
   function showTab(name) {
     document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.tab === name));

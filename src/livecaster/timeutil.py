@@ -13,12 +13,14 @@ class SessionClock:
     """Monotonic clock whose zero is the moment the session started.
 
     ``offset`` lets a resumed session continue counting from where it stopped.
+    ``paused=True`` holds the clock at ``offset`` until :meth:`resume`, so session
+    time starts when the host presses Start rather than when the process did.
     """
 
-    def __init__(self, offset: float = 0.0) -> None:
+    def __init__(self, offset: float = 0.0, *, paused: bool = False) -> None:
         self._start = time.monotonic()
         self._offset = offset
-        self._paused_at: float | None = None
+        self._paused_at: float | None = self._start if paused else None
         self._paused_total = 0.0
 
     def now(self) -> float:

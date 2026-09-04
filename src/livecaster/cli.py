@@ -18,7 +18,7 @@ from rich.table import Table
 from livecaster import __version__
 from livecaster.config import Config, load_config
 from livecaster.log import add_session_log, setup_logging
-from livecaster.timeutil import fmt_hms
+from livecaster.timeutil import SessionClock, fmt_hms
 
 app = typer.Typer(
     add_completion=False,
@@ -103,7 +103,6 @@ async def _run_session(
     mock: bool,
 ) -> None:
     from livecaster.engine import Engine, watch_outline
-    from livecaster.llm.preflight import run_preflight
     from livecaster.session.store import create_session, load_session
     from livecaster.session.transcript import Transcript
 
@@ -115,6 +114,11 @@ async def _run_session(
         store = create_session(outline, cfg, mode=cfg.audio.mode, slug=slug)
         console.print(f"[green]session[/green] {store.dir}")
     add_session_log(store.dir)
+    if not store.outline.leaves():
+        console.print(
+            "[yellow]this outline has nothing to cover[/yellow] — no bullets, questions or "
+            "paragraphs were found, so the map will stay empty. Headings alone are not tracked."
+        )
 
     client = _client(cfg, mock, store.dir)
     engine = Engine(store, cfg, client)
@@ -131,14 +135,15 @@ async def _run_session(
             store.session.duration_s,
             store.session.sync_marks[-1] if store.session.sync_marks else 0.0,
         )
-        engine.clock = type(engine.clock)(offset=last)
+        # Paused, like a fresh session: the clock restarts when Start is pressed.
+        engine.clock = SessionClock(offset=last, paused=True)
         engine.reasoner.clock = engine.clock
         console.print(f"  {len(engine.transcript.segments)} segments, clock at {fmt_hms(last)}")
 
     if cfg.llm.preflight and store.session.preflight is None:
-        console.print("running pre-flight…")
-        await run_preflight(store, client, cfg)
-        engine.fastlane.rebuild(store.outline, store.session.preflight)
+        # Runs once the loop is up, so the map is on screen while the model thinks.
+        engine.preflight_pending = True
+        console.print("pre-flight runs in the background; the UI opens now")
 
     stop_watch = threading.Event()
     watch_outline(engine, stop_watch)
@@ -148,11 +153,37 @@ async def _run_session(
         stop_watch.set()
 
 
+def _port_in_use(host: str, port: int) -> bool:
+    """Bind the port ourselves first: uvicorn's own failure is a traceback."""
+    import socket
+
+    target = "127.0.0.1" if host in ("", "0.0.0.0") else host
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            sock.bind((target, port))
+        except OSError:
+            return True
+    return False
+
+
 async def _serve(engine: Any, cfg: Config) -> None:
     import uvicorn
 
     from livecaster.server.app import create_app
 
+    if cfg.ui.host not in ("127.0.0.1", "localhost", "::1"):
+        console.print(
+            f"[yellow]listening on {cfg.ui.host}[/yellow]: anyone on this network can read the "
+            "transcript, the outline and the show notes. There is no password."
+        )
+    if _port_in_use(cfg.ui.host, cfg.ui.port):
+        console.print(
+            f"[red]port {cfg.ui.port} is already in use[/red] — another Livecaster is probably "
+            f"still running. Close it, or pick another port with "
+            f"[cyan]--set ui.port={cfg.ui.port + 1}[/cyan]."
+        )
+        raise typer.Exit(2)
     application = create_app(engine)
     server = uvicorn.Server(
         uvicorn.Config(application, host=cfg.ui.host, port=cfg.ui.port, log_level="warning")
@@ -480,6 +511,9 @@ async def _check(cfg: Config, run_stt: bool, sample: Path | None) -> bool:
         console.print(f"key present ({len(key)} chars)")
         ok = await _check_models(cfg) and ok
 
+    console.rule("Channels")
+    ok = _check_channels(cfg) and ok
+
     console.rule("Audio devices")
     try:
         from livecaster.audio.devices import list_devices
@@ -526,6 +560,52 @@ async def _check(cfg: Config, run_stt: bool, sample: Path | None) -> bool:
     if run_stt:
         console.rule("STT")
         ok = _check_stt(cfg, sample) and ok
+    return ok
+
+
+def _check_channels(cfg: Config) -> bool:
+    """Resolve every configured source now, so a renamed device fails here and not on air."""
+    from livecaster.audio.devices import audiotee_binary, resolve_device
+
+    ok = True
+    for channel in cfg.audio.channels:
+        scheme, _, rest = channel.source.partition(":")
+        scheme, rest = scheme.strip().lower(), rest.strip()
+        label = f"{channel.name} · [cyan]{channel.source}[/cyan]"
+        if scheme == "device":
+            try:
+                index = resolve_device(rest or None)
+            except ValueError as exc:
+                console.print(f"[red]{label}: {exc}[/red] — run `livecaster devices`")
+                ok = False
+                continue
+            console.print(f"[green]{label}[/green] → {'system default' if index is None else index}")
+        elif scheme == "audiotee":
+            if platform.system() != "Darwin":
+                console.print(f"[red]{label}: AudioTee is macOS only[/red]")
+                ok = False
+            elif not audiotee_binary():
+                console.print(f"[red]{label}: audiotee not built[/red] — ./helpers/audiotee/build.sh")
+                ok = False
+            else:
+                from livecaster.audio.sources import AudioTeeSource
+
+                try:
+                    pids = AudioTeeSource(channel.name, rest).resolve_pids()
+                except Exception as exc:
+                    console.print(f"[yellow]{label}: {exc}[/yellow]")
+                    ok = False
+                    continue
+                console.print(f"[green]{label}[/green] → pid {', '.join(str(p) for p in pids)}")
+        elif scheme == "file":
+            if rest and not Path(rest).is_file():
+                console.print(f"[red]{label}: no such file[/red]")
+                ok = False
+            else:
+                console.print(f"[green]{label}[/green]")
+        else:
+            console.print(f"[red]{label}: unknown source (expected device:, audiotee: or file:)[/red]")
+            ok = False
     return ok
 
 

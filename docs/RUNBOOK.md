@@ -31,6 +31,8 @@ uv run livecaster devices        # confirm the device names in livecaster.toml s
 Checklist:
 
 - [ ] `check` prints both models with prices and a green STT self-test.
+- [ ] `check` resolves every channel in `livecaster.toml` to a real device. A red line here is a
+      microphone that will not open, found while you can still do something about it.
 - [ ] Device names in `livecaster.toml` match what `devices` prints. macOS renames devices when
       you plug things in differently.
 - [ ] **No device is flagged "headset mode".** A Bluetooth headset used as a microphone drops the
@@ -54,8 +56,10 @@ The UI opens at <http://127.0.0.1:8765/>. Set `ui.host = "0.0.0.0"` to read it f
 3. **The moment the external recorder starts, press `m`.** Every chapter timestamp in the show
    notes is measured from that mark. Press it again if you got it wrong; the last one wins.
 
-The pre-flight pass (one LLM call, a few seconds) runs before the server starts, so the map already
-has trigger phrases when you begin.
+The pre-flight pass (one LLM call) runs in the background once the UI is up, and a toast tells you
+when the trigger phrases have landed. You can press Start before it finishes.
+
+Session time starts at **Start**. Nothing accumulates while you are still picking a microphone.
 
 ## During the show
 
@@ -100,7 +104,8 @@ ten minutes. That is deliberate: it stops the tick loop from arguing with you.
 | STT queue climbing | You are on a slow machine with two channels. Nothing to do live; the queue drains at the end. |
 | Transcript stopped | Check the level meters. If a meter is dead, the device changed. **Pause**, fix it, **Resume**. |
 | Wrong topic went hot | Ignore it, or press `x` to skip the item so it stops coming back. |
-| The app crashed | `uv run livecaster run outlines/osnova.md --resume sessions/<dir>`. Everything except the utterance in flight is on disk. The clock, the transcript and every mark come back. |
+| The app crashed | `uv run livecaster run outlines/osnova.md --resume sessions/<dir>`. Everything except the utterance in flight is on disk. The clock, the transcript and every mark come back, and the clock waits for Start again. |
+| `port 8765 is already in use` | An older Livecaster is still running. Close it, or start this one on another port with `--set ui.port=8766`. |
 | The transcript is in the wrong language | Click the 🌐 pill and pick one. It applies to the next utterance. With Parakeet this fixes the notes and drops wrong-alphabet lines but cannot force the words themselves. That needs a better microphone, or `stt.engine=whisper-mlx` (2.6 s per utterance, still fine live). |
 | The headphones sound like a phone call | Their microphone is open, so macOS switched the Bluetooth link to 16 kHz handsfree. That is macOS. Use a wired or USB mic and keep the headphones for listening. |
 | You pressed Finish too early | Press **Record again**. The clock and every mark continue, and the wrap-up re-runs over the whole thing at the end. |
@@ -113,7 +118,9 @@ ten minutes. That is deliberate: it stops the tick loop from arguing with you.
    shows what it is doing. `--set llm.reasoning_effort_final=none` is faster and plainer.
 2. A card shows the duration, tick count and cost, and **Open show notes** switches to the
    **Result** tab, where the notes, the annotated outline, the transcript and the SRT are rendered
-   in the app, without going looking on disk. The tab stays after a reload or a `--resume`.
+   in the app, without going looking on disk. **⧉ Copy** puts whichever file you are looking at
+   on the clipboard, which is usually where a description is headed next. The tab stays after a
+   reload or a `--resume`.
 
 Outputs land in `sessions/<date>_<slug>/final/`:
 

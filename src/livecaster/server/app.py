@@ -8,6 +8,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
@@ -33,6 +34,23 @@ from livecaster.session.reducer import ManualAction
 log = get_logger(__name__)
 
 STATUS_HZ = 5.0
+
+
+def same_origin(websocket: WebSocket) -> bool:
+    """Reject a WebSocket opened by some other page in the host's browser.
+
+    The same-origin policy does not apply to WebSockets, so any site open in a tab
+    during a recording could otherwise connect to 127.0.0.1 and send `finish`. A
+    non-browser client (curl, the tests) sends no Origin and is left alone.
+    """
+    origin = websocket.headers.get("origin")
+    if origin is None:
+        return True
+    try:
+        netloc = urlsplit(origin).netloc
+    except ValueError:
+        return False
+    return bool(netloc) and netloc == websocket.headers.get("host", "")
 
 
 class NoStoreStatic(StaticFiles):
@@ -166,6 +184,10 @@ def create_app(engine: Engine, ui_dir: Path | None = None) -> FastAPI:
 
     @app.websocket("/ws")
     async def ws_endpoint(websocket: WebSocket) -> None:
+        if not same_origin(websocket):
+            log.warning("refused a websocket from %s", websocket.headers.get("origin"))
+            await websocket.close(code=1008)
+            return
         await websocket.accept()
         conn = manager.add(websocket)
         pump = asyncio.create_task(conn.pump())
@@ -235,7 +257,7 @@ async def handle_client_message(engine: Engine, data: dict[str, Any], manager: C
         elif action == "resume":
             await engine.resume()
         elif action == "finish":
-            asyncio.create_task(engine.finish())
+            engine.finish_in_background()
         elif action == "tick_now":
             engine.request_tick()
             manager.broadcast(ToastMessage(level="info", text="Tick requested"))

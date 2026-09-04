@@ -52,8 +52,10 @@ Then check the install:
 uv run livecaster check
 ```
 
-`check` verifies the Venice key and models, downloads and self-tests the STT model, lists audio
-devices, and (on macOS) reports AudioTee availability and the permissions you need to grant.
+`check` verifies the Venice key and models, resolves every microphone named in `livecaster.toml`,
+downloads and self-tests the STT model, lists audio devices, and (on macOS) reports AudioTee
+availability and the permissions you need to grant. A device that was renamed or is simply not
+plugged in fails here rather than at the moment you press Start.
 The first run downloads about 2.4 GB of Parakeet weights, so do not leave it until five minutes
 before a recording; `--no-stt` skips that part. On a flaky connection, pull the model separately
 with `uv run hf download mlx-community/parakeet-tdt-0.6b-v3`, which retries properly instead of
@@ -71,9 +73,13 @@ uv run livecaster run outlines/my-episode.md --mode live
 `outlines/` is git-ignored, because an episode plan usually has guest notes and private context in
 it. Any Markdown works: headings, bullets, nested bullets, `Question:` lines, whole paragraphs.
 
-This parses the outline, starts the server on <http://127.0.0.1:8765>, opens the UI, and (unless
-`--no-preflight`) runs one LLM pass that suggests questions and trigger phrases per topic.
-Press **Start** in the UI when you are ready; press **Finish** when you are done.
+This parses the outline, starts the server on <http://127.0.0.1:8765> and opens the UI. Unless you
+pass `--no-preflight`, one LLM pass then runs in the background and fills in suggested questions and
+trigger phrases per topic; the map is on screen while that happens. Press **Start** in the UI when
+you are ready and **Finish** when you are done.
+
+The clock starts at **Start**, not when the process launched, so chapter and subtitle timestamps
+match the recording rather than however long you spent setting up.
 
 Outputs land in `sessions/<date>_<slug>/final/`:
 `show_notes.md`, `outline_annotated.md`, `transcript.md`, `transcript.srt`, `final_analysis.json`.

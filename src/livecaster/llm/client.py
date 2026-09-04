@@ -207,15 +207,16 @@ class LLMClient:
                 raise LLMError(f"{type(exc).__name__}: {exc}") from exc
 
             usage = self._usage_from(payload, model, latency)
-            content = _content_of(payload)
             try:
-                parsed = model_cls.model_validate_json(content)
-            except (ValidationError, ValueError) as exc:
+                # An empty answer is the DeepSeek reasoning-budget failure mode. It
+                # belongs in llm.jsonl and deserves the same retry as bad JSON.
+                parsed = model_cls.model_validate_json(_content_of(payload))
+            except (LLMError, ValidationError, ValueError) as exc:
                 last_error = str(exc)[:1200]
                 self._log_call(kind, attempt_body, payload, usage, latency, error=last_error)
                 if attempt == 1:
                     raise LLMError(f"invalid JSON from model: {last_error}") from exc
-                log.warning("%s: schema validation failed, retrying once", kind)
+                log.warning("%s: unusable answer (%s), retrying once", kind, last_error[:120])
                 continue
             self._log_call(kind, attempt_body, payload, usage, latency)
             return parsed, usage

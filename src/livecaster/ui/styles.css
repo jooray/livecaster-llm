@@ -89,6 +89,11 @@ body { display: flex; flex-direction: column; }
   white-space: nowrap;
 }
 .pill.err { color: var(--danger); border-color: var(--danger); }
+/* The wrap-up runs for one to three minutes with every button hidden; without
+   this the app looks frozen. */
+.badge.busy { color: var(--hot); border-color: var(--hot); }
+@keyframes badge-pulse { 50% { opacity: .45; } }
+.badge.busy:not(.hidden) { animation: badge-pulse 1.6s ease-in-out infinite; }
 .pill.warn { color: var(--hot); border-color: var(--hot); }
 .pill.ok { color: var(--ok); }
 .pill.clickable { cursor: pointer; }
@@ -417,6 +422,7 @@ kbd {
   background: transparent;
 }
 .result-files .chip.active { border-color: var(--accent); color: var(--accent); }
+.result-files .chip.copy { margin-left: auto; }
 .result-dir {
   flex-basis: 100%;
   font-size: 12px;
