@@ -82,6 +82,7 @@ Each requirement has an ID for traceability in the implementation plan.
 - **FR-03** Never write to the source outline file.
 - **FR-04** Watch the outline file; on change, re-parse, re-map IDs by normalized text so existing states survive, and push the update to the UI.
 - **FR-05** Optional pre-flight pass (one LLM call before the session): per coverable node, 2–3 suggested questions, 3–6 trigger phrases (in the podcast language plus English variants), and related node IDs. Stored in the session, shown on demand in the UI, used by the fast lane (FR-16).
+- **FR-40** A line the host wrote in bold is a **must-ask**: either the whole line is bold, or it opens with a bold run ending in a colon (`**Closing question:** …`). A bold run used to title a sub-item before an em-dash is not one, and neither is bold front matter, which parses as `meta`. No new syntax: every outline already written keeps working. Only coverable nodes qualify.
 
 ### Audio
 
@@ -136,6 +137,8 @@ Each requirement has an ID for traceability in the implementation plan.
 - **FR-36** Audio channels can be changed from the UI: pick a device by name, add or drop a channel, mark which one is `direct`. `GET /api/settings` enumerates the machine's input devices and AudioTee candidates. Applied while recording, the pipelines are rebuilt in place and the clock, the transcript and the map carry on; a channel that will not open drops the session back to `idle` rather than leaving it "running" with nothing on the wire.
 - **FR-37** The tick model, the wrap-up model and the STT engine can be changed from the UI. The reasoner reads the model per pass, so the LLM half lands on the next tick; the STT worker owns a loaded model, so a new engine takes over at the next Start. An engine whose extra is not installed is shown as unavailable rather than failing at Start.
 - **FR-38** An outline can be loaded from the UI — dropped on the map or picked in Settings — so a session can start with no outline at all (`livecaster run` with no argument). The file is written into the session directory, becomes the one the watcher follows, and goes through the ordinary FR-04 remap, so states already earned survive. An outline that arrives after the session opened gets its pre-flight pass then.
+- **FR-41** The episode has an optional **target length** (`session.target_minutes`, unset by default). It is settable from the UI mid-session and travels to the client in the session state, which does the elapsed-against-target arithmetic itself. Unset means no budget and no change to any behaviour.
+- **FR-42** The server binds `127.0.0.1` by default. `--lan` (or `ui.host`) serves the local network so a tablet can see the map; because `/ws` and `/api/control` are a control plane, a non-loopback bind mints a per-session token that every off-machine request must present, as `?k=`, an `X-Livecaster-Token` header, or the cookie the first query sets. Loopback clients stay exempt, so the host's own browser, `--open` and `start.sh` are unaffected; `/api/health` stays open. Startup prints the warning and the tablet URL with the token on it.
 
 ### Audio device resolution
 

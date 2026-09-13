@@ -606,6 +606,30 @@ class Engine:
             llm.burst_words,
         )
 
+    def set_target_minutes(self, minutes: float | None) -> None:
+        """Set or clear how long the episode is meant to run (FR-41).
+
+        The client does the elapsed-against-target arithmetic itself, so this only
+        has to reach it; nothing on the server behaves differently because of it.
+        """
+        session = self.store.session
+        session.target_minutes = float(minutes) if minutes else None
+        self.config.session.target_minutes = session.target_minutes
+        self.store.mark_dirty()
+        self.store.log_event("target", self.clock.now(), target_minutes=session.target_minutes)
+        self.store.emit("state", session)
+        self.store.emit(
+            "toast",
+            {
+                "level": "success",
+                "text": (
+                    f"Episode target {session.target_minutes:g} minutes."
+                    if session.target_minutes
+                    else "Episode target cleared."
+                ),
+            },
+        )
+
     async def set_channels(self, channels: list[ChannelConfig]) -> None:
         """Repoint the microphones from the UI (FR-36).
 

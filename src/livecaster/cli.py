@@ -81,12 +81,18 @@ def run(
     no_preflight: Annotated[bool, typer.Option("--no-preflight", help="Skip the pre-flight pass")] = False,
     mock_llm: Annotated[bool, typer.Option("--mock-llm", help="Use canned LLM responses")] = False,
     open_browser: Annotated[bool | None, typer.Option("--open/--no-open")] = None,
+    lan: Annotated[
+        bool,
+        typer.Option("--lan", help="Serve the UI to the local network (a tablet), behind a key"),
+    ] = False,
     config: ConfigOpt = None,
     set_: SetOpt = None,
 ) -> None:
     """Start a live session."""
     cfg = _config(config, set_)
     cfg.audio.mode = mode  # type: ignore[assignment]
+    if lan:
+        cfg.ui.host = "0.0.0.0"  # noqa: S104 - the point of the flag; the key guards it
     if no_preflight:
         cfg.llm.preflight = False
     if open_browser is not None:
@@ -177,12 +183,11 @@ async def _serve(engine: Any, cfg: Config) -> None:
     import uvicorn
 
     from livecaster.server.app import create_app
+    from livecaster.server.auth import client_url, needs_token, new_token
 
-    if cfg.ui.host not in ("127.0.0.1", "localhost", "::1"):
-        console.print(
-            f"[yellow]listening on {cfg.ui.host}[/yellow]: anyone on this network can read the "
-            "transcript, the outline and the show notes. There is no password."
-        )
+    # Past loopback the WebSocket is a control plane on the network, so it gets a
+    # key (FR-42). The host's own browser still reaches it over loopback, exempt.
+    token = new_token() if needs_token(cfg.ui.host) else None
     if _port_in_use(cfg.ui.host, cfg.ui.port):
         console.print(
             f"[red]port {cfg.ui.port} is already in use[/red] — another Livecaster is probably "
@@ -190,12 +195,19 @@ async def _serve(engine: Any, cfg: Config) -> None:
             f"[cyan]--set ui.port={cfg.ui.port + 1}[/cyan]."
         )
         raise typer.Exit(2)
-    application = create_app(engine)
+    application = create_app(engine, token=token)
     server = uvicorn.Server(
         uvicorn.Config(application, host=cfg.ui.host, port=cfg.ui.port, log_level="warning")
     )
-    url = f"http://{'127.0.0.1' if cfg.ui.host == '0.0.0.0' else cfg.ui.host}:{cfg.ui.port}/"
+    url = f"http://{'127.0.0.1' if cfg.ui.host in ('0.0.0.0', '::') else cfg.ui.host}:{cfg.ui.port}/"
     console.print(f"[bold]UI:[/bold] {url}")
+    if token:
+        console.print(
+            f"[yellow]On the network[/yellow] as {cfg.ui.host}: anything that can reach this "
+            "machine can read the transcript, the outline and the show notes, and can press "
+            "Finish. The key below is the only thing stopping it."
+        )
+        console.print(f"[bold]Tablet:[/bold] {client_url(cfg.ui.host, cfg.ui.port, token)}")
     if cfg.ui.open_browser:
         threading.Timer(1.0, lambda: webbrowser.open(url)).start()
     await server.serve()

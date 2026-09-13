@@ -17,6 +17,15 @@ from starlette.staticfiles import StaticFiles
 from livecaster.config import ChannelConfig
 from livecaster.engine import Engine
 from livecaster.log import get_logger
+from livecaster.server.auth import (
+    COOKIE_NAME,
+    HEADER_NAME,
+    OPEN_PATHS,
+    QUERY_NAME,
+    is_loopback,
+    token_from,
+    token_ok,
+)
 from livecaster.server.protocol import (
     DoneMessage,
     Hello,
@@ -129,7 +138,9 @@ def settings_payload(engine: Engine) -> dict[str, Any]:
     }
 
 
-def create_app(engine: Engine, ui_dir: Path | None = None) -> FastAPI:
+def create_app(engine: Engine, ui_dir: Path | None = None, token: str | None = None) -> FastAPI:
+    """Build the app. ``token`` is set only when the server is bound past loopback
+    (FR-42); with it None nothing about the default local server changes."""
     directory = ui_dir or UI_DIR
     build_id = compute_build_id(directory)
     manager = ConnectionManager()
@@ -159,6 +170,36 @@ def create_app(engine: Engine, ui_dir: Path | None = None) -> FastAPI:
     app.state.engine = engine
     app.state.manager = manager
     app.state.build_id = build_id
+    app.state.token = token
+
+    if token is not None:
+
+        @app.middleware("http")
+        async def require_token(request: Request, call_next: Any) -> Any:
+            """Gate every off-machine request. Loopback is the host's own browser."""
+            if is_loopback(request.client.host if request.client else None):
+                return await call_next(request)
+            if request.url.path in OPEN_PATHS:
+                return await call_next(request)
+            from_query = request.query_params.get(QUERY_NAME)
+            presented = token_from(
+                query=from_query,
+                header=request.headers.get(HEADER_NAME),
+                cookie=request.cookies.get(COOKIE_NAME),
+            )
+            if not token_ok(token, presented):
+                return PlainTextResponse(
+                    "This Livecaster needs the key printed in its terminal. "
+                    f"Open the address it shows, including the ?{QUERY_NAME}=... part.",
+                    status_code=401,
+                )
+            response = await call_next(request)
+            if from_query:
+                # Remember it, so /static, /api and /ws work without the query string.
+                response.set_cookie(
+                    COOKIE_NAME, token, httponly=True, samesite="strict", max_age=60 * 60 * 24
+                )
+            return response
 
     # --- store events -> websocket ------------------------------------------
 
@@ -298,6 +339,16 @@ def create_app(engine: Engine, ui_dir: Path | None = None) -> FastAPI:
 
     @app.websocket("/ws")
     async def ws_endpoint(websocket: WebSocket) -> None:
+        if token is not None and not is_loopback(websocket.client.host if websocket.client else None):
+            presented = token_from(
+                query=websocket.query_params.get(QUERY_NAME),
+                header=websocket.headers.get(HEADER_NAME),
+                cookie=websocket.cookies.get(COOKIE_NAME),
+            )
+            if not token_ok(token, presented):
+                log.warning("refused a websocket without a key from %s", websocket.client)
+                await websocket.close(code=1008)
+                return
         if not same_origin(websocket):
             log.warning("refused a websocket from %s", websocket.headers.get("origin"))
             await websocket.close(code=1008)
@@ -367,6 +418,8 @@ async def handle_client_message(engine: Engine, data: dict[str, Any], manager: C
             stt_engine=message.stt_engine,  # type: ignore[union-attr]
             stt_model=message.stt_model,  # type: ignore[union-attr]
         )
+    elif kind == "set_target":
+        engine.set_target_minutes(message.target_minutes)  # type: ignore[union-attr]
     elif kind == "set_ticks":
         engine.set_ticks(
             interval_s=message.interval_s,  # type: ignore[union-attr]

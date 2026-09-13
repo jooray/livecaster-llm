@@ -33,6 +33,8 @@ class Node(BaseModel):
     line_start: int = 0
     line_end: int = 0
     coverable: bool = False
+    #: The host marked this line as one they must not leave unasked (FR-40).
+    must: bool = False
 
 
 class Outline(BaseModel):

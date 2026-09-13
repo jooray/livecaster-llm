@@ -103,10 +103,19 @@ api_key_env = "OPENAI_API_KEY"
 resolve_links = false   # web search for missing URLs; slower and costs more
 
 [ui]
-host = "127.0.0.1"      # 0.0.0.0 to open the map on a tablet on your LAN
+# 0.0.0.0 opens the map to a tablet on your LAN. Anything but loopback mints a
+# per-session key that off-machine clients must present; the URL to type into the
+# tablet, key included, is printed at startup. `livecaster run --lan` does the same
+# without editing this file. Your own browser still connects over loopback and
+# needs no key.
+host = "127.0.0.1"
 port = 8766
 open_browser = true
 theme = "dark"          # dark | light
 
 [session]
 dir = "sessions"
+# How long the episode is meant to run, in minutes. Leave it out and there is no
+# budget: the app shows a clock and nothing else. Set it and the map can weigh what
+# is still unasked against the time left.
+# target_minutes = 60

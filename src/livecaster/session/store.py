@@ -192,6 +192,7 @@ def create_session(
         outline=outline.nodes,
         outline_next_id=outline.next_id,
         language=None if config.stt.language == "auto" else config.stt.language,
+        target_minutes=config.session.target_minutes,
     )
     store = SessionStore(session, directory, outline, config)
     if outline_file:

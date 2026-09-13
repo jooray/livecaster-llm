@@ -21,6 +21,34 @@ RE_META_BOLD = re.compile(r"^\*\*[^*]+:\*\*")
 RE_META_PLAIN = re.compile(r"^[\w\s]+:\s")
 RE_FRONT_MATTER = re.compile(r"^---\s*$")
 
+# --- must-ask ---------------------------------------------------------------
+#
+# The host already writes the lines they care about in bold, so there is no new
+# syntax to learn (FR-40). The two forms real outlines use are not the same thing:
+#
+#   **Question to answer on camera:** why is this not just "run Whisper"?   <- a label
+#   **Closing question:** what would I want it to do that it does not do yet?
+#   **Otázka:** Vníma Zuzka svoju prácu ako budovanie...
+#
+#   - **Psychedeliká vs. dych** — ako Zuzka vníma psychedeliká v porovnaní...  <- a title
+#   - **Rozdiel medzi jej prácou a holotropným dýchaním** — intenzita, riziká...
+#
+# The colon inside the bold is what separates the two: it is the host addressing
+# themselves. The bare bold run before an em-dash is just how they title a
+# sub-item, and `tests/fixtures/osnova.md` has three of those in one section —
+# promoting them would make "must-ask" mean nothing. A line that is bold from end
+# to end counts too, because there is no other reason to write one that way.
+RE_MUST_LABEL = re.compile(r"^\s*(\*\*|__)\s*(?:(?!\1).)+:\s*\1", re.DOTALL)
+RE_MUST_WHOLE = re.compile(r"^\s*(\*\*|__)\s*(?:(?!\1).)+\1\s*$", re.DOTALL)
+
+
+def is_must_ask(text_md: str) -> bool:
+    """True when a line is bold in one of the two ways a host means "do not miss this"."""
+    s = text_md.strip()
+    if not s:
+        return False
+    return bool(RE_MUST_WHOLE.match(s) or RE_MUST_LABEL.match(s))
+
 # --- cleaning ---------------------------------------------------------------
 
 RE_ANSI = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
@@ -318,6 +346,7 @@ def parse_outline(text: str, source_path: str | None = None, start_id: int = 1) 
 
     outline = Outline(nodes=b.nodes, source_path=source_path, next_id=b.next_id)
     _mark_childless_headings(outline)
+    _mark_must_asks(outline)
     return outline
 
 
@@ -327,6 +356,17 @@ def _mark_childless_headings(outline: Outline) -> None:
         if node.kind != "heading":
             continue
         node.coverable = not any(d.coverable for d in outline.descendants_of(node.id))
+
+
+def _mark_must_asks(outline: Outline) -> None:
+    """Flag the bold lines the host cannot afford to miss (FR-40).
+
+    Only coverable nodes qualify: a must-ask that can never be marked covered would
+    nag for the whole episode. That also drops the `**Dátum:**` / `**Format:**`
+    front-matter lines for free, since those parse as non-coverable `meta`.
+    """
+    for node in outline.nodes:
+        node.must = node.coverable and is_must_ask(node.text_md)
 
 
 def parse_outline_file(path: str | Path) -> Outline:

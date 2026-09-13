@@ -74,6 +74,11 @@ uv run livecaster run outlines/my-episode.md --mode live
 `outlines/` is git-ignored, because an episode plan usually has guest notes and private context in
 it. Any Markdown works: headings, bullets, nested bullets, `Question:` lines, whole paragraphs.
 
+**Bold a line and it becomes a must-ask.** `**Closing question:** what did we never get to?` is the
+one you do not want to reach the end without asking, and the show notes say so if you did. A whole
+bold line counts too. A bold run used to title a bullet — `- **Psychedelics vs. breath** — how do
+they compare?` — deliberately does not, or every titled bullet would be urgent.
+
 You can also start with nothing — `uv run livecaster run` — and drop the Markdown file onto the map
 once the UI is open, or pick it under the cog. The file is copied into the session directory and
 watched from there, so you can keep editing it while you record.
@@ -184,7 +189,7 @@ relative to that mark.
 
 | Command | What it does |
 |---|---|
-| `livecaster run [outline.md] [--mode live\|remote] [--resume DIR] [--slug S] [--no-preflight] [--set k=v]` | Start a session. Without an outline, drop one on the map. |
+| `livecaster run [outline.md] [--mode live\|remote] [--resume DIR] [--slug S] [--no-preflight] [--lan] [--set k=v]` | Start a session. Without an outline, drop one on the map. |
 | `livecaster devices` | List input devices (and AudioTee candidate processes on macOS). |
 | `livecaster replay <file\|dir> [--outline M] [--speed N] [--mock-llm] [--serve]` | Run the pipeline from a file. The source can also be given as `--transcript`, `--wav` or `--session`. |
 | `livecaster wrapup <session_dir> [--model M] [--resolve-links]` | Re-run the wrap-up on an existing session. |
@@ -234,6 +239,9 @@ episodes without a restart:
 - **Models.** The tick model, the wrap-up model and the speech engine. The LLM half lands on the
   next tick; a new speech engine loads at the next Start, because the worker thread owns a loaded
   model. The suggestion list is the provider's own, fetched when the dialog opens.
+- **Episode.** A target length in minutes. Leave it empty and the app just shows the clock; set it
+  and the map can weigh what is still unasked against the time left. `session.target_minutes = 60`
+  in the file makes it the default.
 - **Outline.** Load a different Markdown file. Dropping one anywhere on the map does the same.
 
 None of it is written back to `livecaster.toml` — the file keeps your comments, and the dialog is
@@ -253,6 +261,26 @@ than refusing to start.
 The live surface is deliberately terse: the map marks topics, the **Now** panel shows one line and
 three labels of at most five words each. Click an item, or press `d`, to see the model's reason
 and its suggested segue. Nothing there is meant to be read in full while you are talking.
+
+## Watching from a tablet
+
+The server binds `127.0.0.1`, so by default nothing but this machine can reach it. To put the map on
+a tablet on the same network:
+
+```bash
+uv run livecaster run outlines/my-episode.md --lan
+```
+
+Startup then prints a second URL with a key on the end — type that into the tablet, key included:
+
+```
+UI:     http://127.0.0.1:8766/
+Tablet: http://192.168.1.42:8766/?k=Xf3q...
+```
+
+The key exists because `/ws` is a control plane, not a view: anything that reaches it can press
+Finish, repoint your microphones or read the transcript. Your own browser connects over loopback and
+never needs it, so `--open` and `./start.sh` are unchanged. The key is new every session.
 
 ## Privacy and cost
 

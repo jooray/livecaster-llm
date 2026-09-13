@@ -75,6 +75,26 @@ def node_label(outline: Outline, node_id: str, max_len: int = 70) -> str:
     return cut.rstrip(" ,;:—-") + "…"
 
 
+def missed_must_asks(session: Session, outline: Outline) -> list[dict[str, object]]:
+    """Must-asks that never got covered (FR-40).
+
+    Computed from the reducer's own state rather than from the model's `uncovered`
+    list, for the same reason the reducer exists at all: the model proposes, and
+    ordinary code decides what is true. Skipped counts as answered — the host said
+    so on purpose.
+    """
+    out: list[dict[str, object]] = []
+    for node in outline.nodes:
+        if not node.must:
+            continue
+        state = session.nodes.get(node.id)
+        status = state.status if state else "untouched"
+        if status in ("covered", "skipped"):
+            continue
+        out.append({"text": node_label(outline, node.id), "touched": status == "touched"})
+    return out
+
+
 def render_show_notes(
     analysis: FinalAnalysis,
     session: Session,
@@ -101,6 +121,7 @@ def render_show_notes(
         chapters=chapters,
         covered=[{"text": node_label(outline, c.node_id), "note": c.note} for c in analysis.covered],
         uncovered=[{"text": node_label(outline, c.node_id), "note": c.note} for c in analysis.uncovered],
+        missed_must=missed_must_asks(session, outline),
         quotes=[
             {"t": fmt_hms(max(0.0, q.t - offset)), "speaker": q.speaker, "text": q.text}
             for q in analysis.quotes
