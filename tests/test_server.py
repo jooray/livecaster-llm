@@ -132,26 +132,53 @@ def test_index_html_substitutes_the_theme():
 
 def test_ui_files_parse_as_expected():
     app_js = (UI_DIR / "app.js").read_text(encoding="utf-8")
-    for key in ["j", "k", "c", "x", "p", "m", "t", "d"]:
+    # The live keys, plus the overlays that replaced the tab strip.
+    for key in ["j", "k", "c", "x", "p", "m", "t", "d", "q", "l", "n", "w"]:
         assert f'key === "{key}"' in app_js
-    assert "location.reload()" in app_js
+    assert "location.reload()" in app_js          # FR-27
     assert "localStorage" in app_js
     assert 'action = status === "running" ? "pause"' in app_js
-    assert "drawSparkline" in app_js and "showUsage" in app_js
-    assert "renderPreflight" in app_js  # FR-05: pre-flight questions shown on demand
-    assert "renderResult" in app_js and "/api/final/" in app_js  # exports shown in the UI
-    assert "setDense" in app_js and "glance(" in app_js  # compact live surface (D22)
-    assert "set_language" in app_js  # the language can be locked from the top bar
-    assert "set_ticks" in app_js and "setSideWidth" in app_js
+    assert "showUsage" in app_js
+    assert "renderPrep" in app_js                 # FR-05: pre-flight questions on demand
+    assert "renderResult" in app_js and "/api/final/" in app_js
+    assert "splitSections" in app_js              # a show-notes section copies on click
+    assert "setDense" in app_js
+    assert "set_language" in app_js and "set_ticks" in app_js and "set_target" in app_js
+    # The score: lettered rehearsal marks are the jump keys, and a tick that only
+    # recolours a line must not rebuild the DOM under someone mid-glance.
+    assert "letterFor" in app_js and "jumpTo" in app_js and "state.letters" in app_js
+    assert "shapeKey" in app_js and "livePassage" in app_js
+
     css = (UI_DIR / "styles.css").read_text(encoding="utf-8")
-    assert "--font: 18px" in css
-    for state in ["warm", "touched", "covered", "skipped", "hot", "pinned", "current", "selected"]:
-        assert f".node.{state}" in css
+    assert "--body: 18px" in css                  # FR-26 floor
+    for state in ["cut", "warm", "skipped", "accent", "hot", "pinned", "current", "selected"]:
+        assert f".stave.{state}" in css
+    assert ".system.is-rest" in css and ".system.is-live" in css
+    assert 'html[data-theme="light"]' in css      # FR-26 light theme
+    # Self-hosted faces: the network failing mid-episode must not restyle the page.
+    assert "/static/fonts/" in css
+    assert "fonts.googleapis.com" not in css and "fonts.gstatic.com" not in css
+
     html = (UI_DIR / "index.html").read_text(encoding="utf-8")
-    assert json.dumps("edge-up")[1:-1] in html
-    assert "sparkline" in html and "usage-body" in html
-    assert "lang-status" in html and "btn-density" in html and "result-body" in html
-    assert "splitter" in html and "tick-form" in html
+    for ident in ["edge-up", "usage-body", "lang-status", "result-body", "tick-form",
+                  "systems", "overlay-body", "wrap", "budget", "settings-target"]:
+        assert json.dumps(ident)[1:-1] in html
+    assert "fonts.googleapis.com" not in html
+    # The tab strip and the drag-to-resize split are gone with the redesign.
+    assert "splitter" not in html and 'class="tab"' not in html
+
+
+def test_ui_ships_the_fonts_it_asks_for():
+    referenced = {
+        line.split("/static/fonts/")[1].split(")")[0].strip('"\'')
+        for line in (UI_DIR / "styles.css").read_text(encoding="utf-8").splitlines()
+        if "/static/fonts/" in line
+    }
+    assert referenced, "the stylesheet should name its own woff2 files"
+    for name in referenced:
+        path = UI_DIR / "fonts" / name
+        assert path.exists(), f"{name} is referenced but not shipped"
+        assert path.stat().st_size > 1000
 
 
 # --- the wrap-up's files, served to the UI ---------------------------------

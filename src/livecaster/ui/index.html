@@ -4,106 +4,78 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Livecaster</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎙️</text></svg>">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%230e0f11'/><rect x='6' y='7' width='20' height='18' fill='none' stroke='%23f2efe6' stroke-width='2'/><path d='M11 12h10M11 16h10M11 20h6' stroke='%23e4573a' stroke-width='2'/></svg>">
+<link rel="preload" href="/static/fonts/libre-franklin-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/static/styles.css">
 <script>window.BUILD_ID = "{{BUILD_ID}}";</script>
 </head>
 <body>
-<header id="topbar">
-  <div class="tb-group">
-    <span id="rec-dot" class="dot"></span>
-    <span id="clock" class="clock">00:00:00</span>
-    <span id="sync-badge" class="badge hidden">sync 00:00:00</span>
-    <span id="busy" class="badge busy hidden">writing show notes…</span>
-  </div>
-  <div class="tb-group" id="meters"></div>
-  <div class="tb-group">
-    <span class="pill clickable" id="lang-status" title="Transcription language — click to change">🌐 auto</span>
+
+<header id="head">
+  <span id="clock" class="clock num">00:00:00</span>
+  <span id="of" class="of num hidden"></span>
+  <span id="budget" class="num"></span>
+  <span id="meters" title="Audio levels — click for settings"></span>
+  <span class="status">
+    <span id="sync-badge" class="hidden">sync 00:00:00</span>
+    <span id="busy" class="hidden">writing the notes…</span>
+    <span class="pill clickable" id="lang-status" title="Transcription language — click to change">auto</span>
     <span class="pill" id="stt-status">STT —</span>
-    <span class="pill" id="llm-status">LLM —</span>
+    <span class="pill clickable" id="llm-status">LLM —</span>
     <span class="pill clickable" id="cost-status" title="Click for the breakdown">$0.00 · 0 ticks</span>
-    <svg id="sparkline" class="sparkline" viewBox="0 0 120 24" preserveAspectRatio="none" aria-hidden="true">
-      <polyline id="spark-line" fill="none" stroke="currentColor" stroke-width="1.5" points=""></polyline>
-    </svg>
-  </div>
-  <div class="tb-group buttons">
-    <button id="btn-start" data-action="start">Start</button>
+  </span>
+  <span class="controls">
+    <button id="btn-start" data-action="start" class="primary">Start</button>
     <button id="btn-pause" data-action="pause" class="hidden">Pause</button>
     <button id="btn-resume" data-action="resume" class="hidden">Resume</button>
     <button id="btn-finish" data-action="finish" class="danger">Finish</button>
-    <button data-action="sync_mark" title="m">Sync mark</button>
-    <button data-action="tick_now">Tick now</button>
-    <button data-action="reload_outline">Reload outline</button>
-    <button id="btn-density" title="Compact / full text (d)">▥</button>
-    <button id="btn-settings" title="Audio, models and outline (,)">⚙</button>
-    <button id="btn-theme" title="Toggle theme">◐</button>
-    <button id="btn-help" title="?">?</button>
-  </div>
+    <button data-action="sync_mark" title="Sync mark (m)">Sync</button>
+    <button id="btn-wrap" class="hidden" title="The notes (w)">Notes</button>
+    <button id="btn-settings" class="icon" title="Audio, models, outline (,)" aria-label="Settings">⚙</button>
+    <button id="btn-theme" class="icon" title="Light / dark" aria-label="Toggle theme">◐</button>
+    <button id="btn-help" class="icon" title="Keyboard (?)" aria-label="Help">?</button>
+  </span>
 </header>
 
-<main>
-  <section id="outline-pane">
-    <div class="edge-indicator top hidden" id="edge-up">▲ <span>0</span> hot</div>
-    <div id="outline" class="outline" tabindex="0"></div>
-    <div id="outline-empty" class="outline-empty hidden">
+<div id="score-pane">
+  <div class="edge top hidden" id="edge-up"><span></span></div>
+
+  <main id="score" tabindex="-1">
+    <div id="systems"></div>
+    <div id="score-empty" class="score-empty hidden">
       <h2>No outline yet</h2>
-      <p>Drop a Markdown file anywhere on this panel, or
+      <p>Drop a Markdown file anywhere here, or
         <button type="button" id="btn-pick-outline" class="link">choose one</button>.</p>
-      <p class="muted">It is copied into the session directory and watched for changes,
-        so you can keep editing it while you record.</p>
+      <p>It is copied into the session directory and watched for changes, so you can keep
+        editing it while you record. Bold a line to mark it as one you must ask.</p>
     </div>
-    <div id="outline-drop" class="outline-drop hidden"><span>Drop the outline here</span></div>
-    <div class="edge-indicator bottom hidden" id="edge-down">▼ <span>0</span> hot</div>
-  </section>
+  </main>
 
-  <div id="splitter" role="separator" aria-orientation="vertical" title="Drag to resize · double-click to reset"></div>
+  <div class="edge bottom hidden" id="edge-down"><span></span></div>
+  <div id="score-drop" class="score-drop hidden"><span>Drop the outline here</span></div>
 
-  <aside id="side">
-    <nav class="tabs" id="tabs">
-      <button class="tab active" data-tab="now">Now</button>
-      <button class="tab" data-tab="questions">Questions</button>
-      <button class="tab" data-tab="mentions">Mentions</button>
-      <button class="tab" data-tab="transcript">Transcript</button>
-      <button class="tab" data-tab="new">New topics</button>
-      <button class="tab hidden" data-tab="result" id="tab-result">Result</button>
-    </nav>
-
-    <div class="tabpanels">
-      <div class="panel active" data-panel="now">
-        <h2>Now</h2>
-        <p id="now-summary" class="muted">Waiting for the first tick…</p>
-        <h2>Next</h2>
-        <ol id="next-list" class="next-list"></ol>
-      </div>
-      <div class="panel" data-panel="questions">
-        <h2>Questions</h2>
-        <ul id="questions-list" class="q-list"></ul>
-      </div>
-      <div class="panel" data-panel="mentions">
-        <h2>Mentions</h2>
-        <ul id="mentions-list" class="m-list"></ul>
-      </div>
-      <div class="panel" data-panel="transcript">
-        <h2>Transcript</h2>
-        <div id="transcript" class="transcript"></div>
-      </div>
-      <div class="panel" data-panel="result">
-        <div id="result-files" class="result-files"></div>
-        <div id="result-body" class="result-body"></div>
-      </div>
-
-      <div class="panel" data-panel="new">
-        <h2>New topics</h2>
-        <ul id="newtopics-list" class="m-list"></ul>
-      </div>
+  <aside id="overlay" class="hidden" aria-live="polite">
+    <div class="overlay-head">
+      <h2 id="overlay-title">Transcript</h2>
+      <button type="button" class="close" id="overlay-close">Esc</button>
     </div>
+    <div id="overlay-body"></div>
   </aside>
-</main>
+
+  <section id="wrap" class="hidden">
+    <div class="wrap-head">
+      <h2>What came out of it</h2>
+      <button type="button" class="back" id="wrap-back">Back to the score</button>
+    </div>
+    <div id="result-files" class="result-files"></div>
+    <div id="result-body" class="result-body"></div>
+  </section>
+</div>
 
 <div id="toasts"></div>
 
 <dialog id="ticks">
-  <h3>How often the model is asked</h3>
+  <h2>How often the model is asked</h2>
   <p class="muted">Takes effect on the next tick. Persist it in <code>livecaster.toml</code>
     under <code>[llm]</code>.</p>
   <form id="tick-form">
@@ -120,7 +92,7 @@
 </dialog>
 
 <dialog id="lang">
-  <h3>Transcription language</h3>
+  <h2>Transcription language</h2>
   <p id="lang-note" class="muted"></p>
   <div id="lang-choices" class="lang-choices"></div>
   <form method="dialog"><button>Close</button></form>
@@ -157,7 +129,7 @@
     <label>Target length
       <input id="settings-target" type="number" min="1" max="1440" step="1" placeholder="no target"></label>
   </div>
-  <p class="muted">Minutes. Leave it empty and the app just shows the clock.</p>
+  <p class="muted">Minutes. Leave it empty and the head still says what is left in the plan, but nothing about time.</p>
 
   <h3>Outline</h3>
   <p id="settings-outline-note" class="muted"></p>
@@ -182,21 +154,26 @@
 <dialog id="help">
   <h2>Keyboard</h2>
   <table>
-    <tr><td><kbd>j</kbd> / <kbd>k</kbd></td><td>move selection</td></tr>
-    <tr><td><kbd>c</kbd></td><td>toggle covered</td></tr>
-    <tr><td><kbd>x</kbd></td><td>toggle skipped</td></tr>
-    <tr><td><kbd>p</kbd></td><td>toggle pin</td></tr>
-    <tr><td><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></td><td>select hot item by rank</td></tr>
-    <tr><td><kbd>m</kbd></td><td>sync mark</td></tr>
-    <tr><td><kbd>t</kbd></td><td>toggle transcript panel</td></tr>
+    <tr><td><kbd>A</kbd>…<kbd>Z</kbd></td><td>jump to a system — type the capital in the margin</td></tr>
+    <tr><td><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></td><td>go to what the model is suggesting, by rank</td></tr>
+    <tr><td><kbd>j</kbd> / <kbd>k</kbd></td><td>move down / up a line</td></tr>
+    <tr><td><kbd>c</kbd></td><td>covered — the engraver's cut</td></tr>
+    <tr><td><kbd>x</kbd></td><td>skipped</td></tr>
+    <tr><td><kbd>p</kbd></td><td>pin</td></tr>
+    <tr><td><kbd>t</kbd></td><td>transcript</td></tr>
+    <tr><td><kbd>q</kbd></td><td>questions worth asking</td></tr>
+    <tr><td><kbd>l</kbd></td><td>links and mentions to follow up</td></tr>
+    <tr><td><kbd>n</kbd></td><td>topics that were not in the outline</td></tr>
+    <tr><td><kbd>w</kbd></td><td>the notes, once the session is wrapped up</td></tr>
+    <tr><td><kbd>m</kbd></td><td>sync mark, when the real recorder rolls</td></tr>
     <tr><td><kbd>d</kbd></td><td>compact / full text</td></tr>
-    <tr><td>drag the divider</td><td>resize the panels (double-click to reset)</td></tr>
-    <tr><td>click the LLM pill</td><td>how often the model is asked</td></tr>
-    <tr><td>click the 🌐 pill</td><td>transcription language</td></tr>
-    <tr><td><kbd>,</kbd></td><td>settings: audio, models, outline</td></tr>
     <tr><td><kbd>space</kbd></td><td>pause / resume</td></tr>
-    <tr><td><kbd>?</kbd></td><td>this help</td></tr>
+    <tr><td><kbd>,</kbd></td><td>settings: audio, models, episode, outline</td></tr>
+    <tr><td><kbd>Esc</kbd></td><td>close whatever is open</td></tr>
+    <tr><td><kbd>?</kbd></td><td>this</td></tr>
   </table>
+  <p class="muted">Click the LLM reading to change how often the model is asked, the language for the
+    transcription language, and the cost for the breakdown.</p>
   <form method="dialog"><button>Close</button></form>
 </dialog>
 

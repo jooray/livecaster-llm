@@ -254,33 +254,24 @@ than refusing to start.
 
 ## Keyboard
 
-`j`/`k` move the selection · `c` covered · `x` skipped · `p` pin · `1`/`2`/`3` jump to a hot item ·
-`m` sync mark · `t` toggle transcript · `d` compact/full text · `space` pause/resume · `,` settings ·
-`?` help.
+`A`…`Z` jump to the system with that letter in the margin · `1`/`2`/`3` go to a suggestion by rank ·
+`j`/`k` move the selection · `c` covered · `x` skipped · `p` pin · `t` transcript · `q` questions ·
+`l` links promised · `n` new topics · `w` the notes · `m` sync mark · `d` compact/full ·
+`space` pause/resume · `,` settings · `?` help.
 
-The live surface is deliberately terse: the map marks topics, the **Now** panel shows one line and
-three labels of at most five words each. Click an item, or press `d`, to see the model's reason
-and its suggested segue. Nothing there is meant to be read in full while you are talking.
+The outline is drawn as a score. Each section is a *system* with a lettered rehearsal mark in the
+margin, and that letter is how you jump there — an orchestra re-enters at any bar for the same reason
+you need to when a guest wanders. Covered lines take a single engraver's cut with the time beside
+them; a section you have finished rests to one line, in place, so the plan visibly shrinks as you
+work. Click it to open it back up.
 
-## Watching from a tablet
+The one topic that just became reachable is set as the passage to play now, in pencil red, with the
+model's reason and a sentence you could use to get there. A line you **bolded** in the outline is a
+must-ask and carries a marcato accent until you have answered it.
 
-The server binds `127.0.0.1`, so by default nothing but this machine can reach it. To put the map on
-a tablet on the same network:
-
-```bash
-uv run livecaster run outlines/my-episode.md --lan
-```
-
-Startup then prints a second URL with a key on the end — type that into the tablet, key included:
-
-```
-UI:     http://127.0.0.1:8766/
-Tablet: http://192.168.1.42:8766/?k=Xf3q...
-```
-
-The key exists because `/ws` is a control plane, not a view: anything that reaches it can press
-Finish, repoint your microphones or read the transcript. Your own browser connects over loopback and
-never needs it, so `--open` and `./start.sh` are unchanged. The key is new every session.
+Nothing else sits on the screen. The transcript, the questions, the links you promised and the topics
+that were not in your plan are keys that overlay and leave again. Nothing there is meant to be read
+in full while you are talking.
 
 ## Privacy and cost
 
