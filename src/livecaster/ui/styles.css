@@ -145,7 +145,8 @@ body { display: flex; flex-direction: column; overflow: hidden; }
 .of { color: var(--ink-quiet); font-size: 20px; }
 
 /* Time against plan: one line that informs and never regroups the map. */
-#budget { display: flex; flex-wrap: wrap; gap: 4px 22px; color: var(--ink-quiet); font-size: 19px; }
+#budget { display: flex; flex-wrap: wrap; gap: 4px 22px; color: var(--ink-quiet); font-size: 19px;
+  font-family: var(--cue); font-style: italic; }
 #budget b { color: var(--ink); font-weight: 600; }
 #budget .over { color: var(--pencil); font-weight: 600; }
 #budget .marked { color: var(--mark); font-weight: 600; }
@@ -181,7 +182,7 @@ body { display: flex; flex-direction: column; overflow: hidden; }
 
 /* The model has stopped answering: the map is no longer tracking the
    conversation, and an untouched line must stop reading as a discussed one. */
-body.not-tracking .system > .margin::after { background: none; border-left: 1px dashed var(--staff); }
+body.not-tracking .system > .margin::after { border-style: dashed; }
 body.not-tracking .rmark { border-style: dashed; }
 body.not-tracking #head { border-bottom-style: dashed; border-bottom-color: var(--pencil); }
 
@@ -220,14 +221,17 @@ body.not-tracking #head { border-bottom-style: dashed; border-bottom-color: var(
   min-width: 32px; height: 32px; font-size: 19px; font-weight: 500;
 }
 
-/* The bracket a score draws to gather one system's staves. */
+/* The bracket a score draws to gather one system's staves. Hooks at both ends,
+   because a bare vertical rule reads as a column divider. */
 .system > .margin::after {
   content: "";
-  position: absolute; left: 19px; top: 44px; bottom: 2px; width: 1px;
-  background: var(--staff);
+  position: absolute; left: 19px; top: 44px; bottom: 2px; width: 6px;
+  border-left: 1px solid var(--staff);
+  border-top: 1px solid var(--staff);
+  border-bottom: 1px solid var(--staff);
 }
 .system.is-rest > .margin::after { display: none; }
-.system.is-live > .margin::after { background: var(--pencil); }
+.system.is-live > .margin::after { border-color: var(--pencil); }
 
 .sysname { display: flex; flex-wrap: wrap; align-items: baseline; gap: 3px 13px; margin-bottom: 8px; }
 .sysname h2 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -.01em; }
@@ -244,6 +248,16 @@ body.not-tracking #head { border-bottom-style: dashed; border-bottom-color: var(
 .system.is-ahead .rmark { border-color: var(--ink-quiet); color: var(--ink-quiet); }
 .system.is-ahead .sysname h2 { color: var(--ink-quiet); }
 
+/* The final barline, thin then thick: the score's own way of saying this is
+   done. A system folded because it is still ahead of you never gets one. */
+.system.is-rest:not(.is-ahead) .sysname::after {
+  content: "";
+  display: inline-block; width: 6px; height: .95em; margin-left: 4px;
+  border-left: 1px solid var(--rest);
+  border-right: 3px solid var(--rest);
+  vertical-align: -.08em;
+}
+
 /* A sub-heading inside a system stays a label, never another system. */
 .substave { margin: 12px 0 4px; color: var(--ink-quiet); font-weight: 600; font-size: 17px; }
 
@@ -258,7 +272,20 @@ body.not-tracking #head { border-bottom-style: dashed; border-bottom-color: var(
 .stave:hover { background: var(--sel); }
 .stave.selected { background: var(--sel); box-shadow: inset 2px 0 0 var(--ink); }
 .stave .t { color: var(--ink-quiet); min-width: 5.5ch; font-size: 16px; flex: none; }
-.stave .body { min-width: 0; max-width: 76ch; }
+.stave .body { min-width: 0; max-width: 76ch; position: relative; }
+
+@keyframes draw-cut { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.stave.just-cut .body { text-decoration: none; }
+.stave.just-cut .body::after {
+  content: "";
+  position: absolute; left: 0; right: 0; top: 52%; height: 1px;
+  background: var(--staff); transform-origin: left;
+  animation: draw-cut .42s cubic-bezier(.2, .8, .2, 1) 1 both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .stave.just-cut .body { text-decoration: line-through; }
+  .stave.just-cut .body::after { display: none; }
+}
 
 /* The episode's own title, above the first system. */
 .score-title {

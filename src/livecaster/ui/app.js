@@ -27,6 +27,7 @@
     resultText: "",
     overlay: null,             // "transcript" | "questions" | "mentions" | "new"
     llmFails: 0,               // consecutive failed ticks
+    seenStatus: new Map(),     // node id -> last status, to catch the moment one is cut
     lastTickAt: null,          // clock of the last tick that landed
     wrapOpen: false,
     openRest: new Set(),       // rested systems the host has opened back up
@@ -475,6 +476,12 @@
     if (st.warm > 0 && isOpen(st)) cls.add("warm");
     if (st.status === "touched") cls.add("warm");
     if (st.status === "covered") cls.add("cut");
+    const was = state.seenStatus.get(id);
+    state.seenStatus.set(id, st.status || "untouched");
+    if (was !== undefined && was !== "covered" && st.status === "covered") {
+      cls.add("just-cut");
+      setTimeout(() => cls.remove("just-cut"), 460);
+    }
     if (st.status === "skipped") cls.add("skipped");
     if (st.pinned) cls.add("pinned");
     if (node.must) cls.add("accent");

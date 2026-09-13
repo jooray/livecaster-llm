@@ -211,3 +211,26 @@ def test_reloading_a_transcript_repeats_the_crosstalk_dedupe(tmp_path: Path):
     reloaded = Transcript.load_jsonl(path, ["Guest"])
     assert [s.id for s in reloaded.segments] == ["S2"]
     assert reloaded.dropped_crosstalk == 1
+
+
+def test_two_sessions_started_at_once_get_their_own_directories(tmp_path):
+    """Two processes starting in the same second must not pick the same slug.
+
+    The old code tested `exists()` and then created the directory, so both
+    callers agreed on a name and the loser crashed renaming session.json.tmp
+    over a file the winner had already moved.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    cfg = Config()
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        stores = list(
+            pool.map(
+                lambda _: create_session(None, cfg, slug="demo", base_dir=tmp_path),
+                range(8),
+            )
+        )
+    dirs = [s.dir for s in stores]
+    assert len(set(dirs)) == len(dirs), f"collided: {sorted(d.name for d in dirs)}"
+    for d in dirs:
+        assert (d / "session.json").exists()
