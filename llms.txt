@@ -46,6 +46,7 @@ will not surface again until the host is already recording.
 
 ```bash
 uv run livecaster run outlines/episode.md               # live: one room, one or more microphones
+uv run livecaster run                                   # no outline yet: drop one on the map
 uv run livecaster run outlines/episode.md --mode remote # remote guest through the browser
 uv run livecaster replay tests/fixtures/transcript_sk.jsonl --outline demo/demo.md --speed 0
 uv run livecaster replay --wav sample.wav --outline demo/demo.md --mock-llm
@@ -67,6 +68,15 @@ LIVECASTER_LLM__TICK_MODEL=deepseek-v4-flash-0731 uv run livecaster run outlines
 
 Precedence: defaults, then `livecaster.toml` (working directory, then `~/.config/livecaster/`),
 then `LIVECASTER_*` environment variables, then `--set`.
+
+The cog in the UI (or `,`) changes three of them without a restart, for this session only: the
+audio channels (pick any input device by name; applied while recording, the pipelines are rebuilt
+in place), the tick, wrap-up and STT models, and the outline. Dropping a Markdown file on the map
+loads it too. Nothing is written back to `livecaster.toml`.
+
+The default audio source is `device:auto` — whichever microphone exists at Start, the system
+default first. A device named in the config but not plugged in falls back to an available one with
+a warning rather than refusing to start.
 
 ## How it works
 

@@ -14,6 +14,7 @@ from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconn
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from starlette.staticfiles import StaticFiles
 
+from livecaster.config import ChannelConfig
 from livecaster.engine import Engine
 from livecaster.log import get_logger
 from livecaster.server.protocol import (
@@ -34,6 +35,9 @@ from livecaster.session.reducer import ManualAction
 log = get_logger(__name__)
 
 STATUS_HZ = 5.0
+#: An outline is prose. Anything larger than this is not one, and the browser
+#: should not be able to fill the session directory by accident either.
+MAX_OUTLINE_BYTES = 2_000_000
 
 
 def same_origin(websocket: WebSocket) -> bool:
@@ -60,6 +64,69 @@ class NoStoreStatic(StaticFiles):
         response = super().file_response(*args, **kwargs)
         response.headers["Cache-Control"] = "no-store"
         return response
+
+
+def settings_payload(engine: Engine) -> dict[str, Any]:
+    """Everything the Settings dialog needs, in one round-trip (FR-36, FR-37).
+
+    Enumerating devices talks to PortAudio and can block for a moment, so the
+    route calls this in a thread.
+    """
+    from livecaster.audio.devices import audiotee_binary, audiotee_candidates, list_devices
+    from livecaster.llm.pricing import PRICING
+    from livecaster.stt.registry import engine_catalogue
+
+    cfg = engine.config
+    devices: list[dict[str, Any]] = []
+    device_error: str | None = None
+    try:
+        for d in list_devices():
+            devices.append(
+                {
+                    "index": d.index,
+                    "name": d.name,
+                    "channels": d.max_input_channels,
+                    "samplerate": round(d.default_samplerate),
+                    "hostapi": d.hostapi,
+                    "is_default": d.is_default,
+                    "headset_mode": d.is_headset_mode,
+                }
+            )
+    except Exception as exc:
+        device_error = f"{type(exc).__name__}: {exc}"
+        log.warning("device enumeration failed: %s", device_error)
+
+    session = engine.store.session
+    return {
+        "audio": {
+            "mode": cfg.audio.mode,
+            "record": cfg.audio.record,
+            "channels": [c.model_dump() for c in cfg.audio.channels],
+            "devices": devices,
+            "device_error": device_error,
+            "audiotee": audiotee_candidates(),
+            "audiotee_available": bool(audiotee_binary()),
+        },
+        "stt": {
+            "engine": cfg.stt.engine,
+            "model": cfg.stt.model,
+            "language": cfg.stt.language,
+            "engines": engine_catalogue(),
+        },
+        "llm": {
+            "tick_model": cfg.llm.tick_model,
+            "final_model": cfg.llm.final_model,
+            "default_provider": cfg.llm.default_provider,
+            "providers": sorted(cfg.llm.providers),
+            "known_models": sorted(PRICING),
+        },
+        "outline": {
+            "path": session.outline_path,
+            "items": len(engine.store.outline.leaves()),
+            "nodes": len(session.outline),
+        },
+        "session_status": session.status,
+    }
 
 
 def create_app(engine: Engine, ui_dir: Path | None = None) -> FastAPI:
@@ -140,6 +207,53 @@ def create_app(engine: Engine, ui_dir: Path | None = None) -> FastAPI:
     @app.get("/api/health", response_class=PlainTextResponse)
     async def api_health() -> str:
         return "ok"
+
+    @app.get("/api/settings")
+    async def api_settings() -> JSONResponse:
+        return JSONResponse(await asyncio.to_thread(settings_payload, engine))
+
+    @app.get("/api/models")
+    async def api_models(provider: str | None = None) -> JSONResponse:
+        """The provider's live model list, for the Settings dialog's suggestions.
+
+        Never an error status: the dialog works from the built-in list when the
+        network or the key is not there, and must not look broken because of it.
+        """
+        lister = getattr(engine.client, "list_models", None)
+        name = provider or engine.config.llm.default_provider
+        if lister is None:
+            return JSONResponse({"provider": name, "models": [], "error": "this client cannot list models"})
+        try:
+            payload = await lister(provider)
+        except Exception as exc:
+            log.info("model list from %s failed: %s", name, exc)
+            return JSONResponse({"provider": name, "models": [], "error": f"{type(exc).__name__}: {exc}"})
+        ids = sorted({str(m["id"]) for m in payload.get("data") or [] if m.get("id")})
+        return JSONResponse({"provider": name, "models": ids})
+
+    @app.post("/api/outline")
+    async def api_outline(request: Request) -> JSONResponse:
+        """Adopt an outline uploaded from the browser (FR-38).
+
+        The body is JSON rather than a multipart form so that reading a `.md` in
+        the browser and posting its text needs no extra server dependency.
+        """
+        data = await request.json()
+        text = data.get("text")
+        if not isinstance(text, str) or not text.strip():
+            return JSONResponse({"error": "no outline text"}, status_code=400)
+        if len(text.encode("utf-8")) > MAX_OUTLINE_BYTES:
+            return JSONResponse({"error": "that file is too large to be an outline"}, status_code=413)
+        filename = str(data.get("filename") or "")
+        if not engine.load_outline_text(text, filename):
+            return JSONResponse({"error": "the outline could not be loaded"}, status_code=400)
+        return JSONResponse(
+            {
+                "ok": True,
+                "path": engine.store.session.outline_path,
+                "items": len(engine.store.outline.leaves()),
+            }
+        )
 
     @app.get("/api/final")
     async def api_final_index() -> JSONResponse:
@@ -242,6 +356,17 @@ async def handle_client_message(engine: Engine, data: dict[str, Any], manager: C
         pass  # client-side only; accepted so the UI can keep one message shape
     elif kind == "set_language":
         engine.set_language(message.language)  # type: ignore[union-attr]
+    elif kind == "set_audio":
+        await engine.set_channels(
+            [ChannelConfig(**c.model_dump()) for c in message.channels]  # type: ignore[union-attr]
+        )
+    elif kind == "set_models":
+        engine.set_models(
+            tick_model=message.tick_model,  # type: ignore[union-attr]
+            final_model=message.final_model,  # type: ignore[union-attr]
+            stt_engine=message.stt_engine,  # type: ignore[union-attr]
+            stt_model=message.stt_model,  # type: ignore[union-attr]
+        )
     elif kind == "set_ticks":
         engine.set_ticks(
             interval_s=message.interval_s,  # type: ignore[union-attr]

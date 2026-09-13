@@ -185,3 +185,63 @@ def test_recorder_ensure_open_takes_the_real_rate(tmp_path: Path):
     audio, rate = sf.read(str(tmp_path / "native.wav"))
     assert rate == 48_000
     assert len(audio) == 4800
+
+
+def test_auto_device_resolves_to_a_real_input(monkeypatch):
+    """`device:auto` is the whole point: a config file never names a headset."""
+    from livecaster.audio import devices as dev
+
+    fake = [
+        dev.DeviceInfo(index=1, name="USB Mic", max_input_channels=1, default_samplerate=48_000),
+        dev.DeviceInfo(
+            index=4, name="MacBook Pro Microphone", max_input_channels=1,
+            default_samplerate=48_000, is_default=True,
+        ),
+    ]
+    monkeypatch.setattr(dev, "list_devices", lambda: fake)
+    assert dev.default_input_device().index == 4      # the system default wins
+    assert dev.resolve_device("auto") == 4
+    assert dev.resolve_device("first") == 4
+    assert dev.resolve_device("USB") == 1             # a substring still pins one
+
+    monkeypatch.setattr(dev, "list_devices", lambda: fake[:1])
+    assert dev.resolve_device("auto") == 1            # no default at all: the first one
+
+    monkeypatch.setattr(dev, "list_devices", list)
+    with pytest.raises(ValueError, match="no audio input device"):
+        dev.resolve_device("auto")
+
+
+def test_device_source_falls_back_when_the_headset_is_in_its_case(monkeypatch):
+    from livecaster.audio import devices as dev
+    from livecaster.audio import sources as src
+    from livecaster.audio.sources import DeviceSource
+
+    chosen = dev.DeviceInfo(
+        index=2, name="MacBook Pro Microphone", max_input_channels=1,
+        default_samplerate=48_000, is_default=True,
+    )
+    monkeypatch.setattr(src, "default_input_device", lambda: chosen)
+    def gone(spec):
+        raise ValueError(f"no input device matching {spec!r}")
+
+    monkeypatch.setattr(src, "resolve_device", gone)
+    source = DeviceSource("Host", "WH-1000XM6")
+    assert source._resolve() == 2
+    assert "WH-1000XM6" in source.fallback_note
+    assert "MacBook Pro Microphone" in source.fallback_note
+
+
+def test_device_source_re_raises_when_there_is_no_microphone_at_all(monkeypatch):
+    from livecaster.audio import sources as src
+    from livecaster.audio.sources import DeviceSource
+
+    def gone(spec):
+        raise ValueError("nope")
+
+    monkeypatch.setattr(src, "default_input_device", lambda: None)
+    monkeypatch.setattr(src, "resolve_device", gone)
+    source = DeviceSource("Host", "WH-1000XM6")
+    with pytest.raises(ValueError, match="nope"):
+        source._resolve()
+    assert source.fallback_note is None

@@ -247,3 +247,97 @@ def test_same_origin_allows_a_client_without_an_origin_header():
         headers: dict[str, str] = {}
 
     assert same_origin(FakeWS()) is True
+
+
+# --- settings: audio, models and the outline, all from the browser ----------
+
+
+def test_api_settings_describes_the_machine(client):
+    data = client.get("/api/settings").json()
+    assert [c["name"] for c in data["audio"]["channels"]] == ["Host", "Guest"]
+    assert isinstance(data["audio"]["devices"], list)
+    assert data["llm"]["tick_model"]
+    assert "deepseek-v4-flash-0731-fast" in data["llm"]["known_models"]
+    keys = {e["key"] for e in data["stt"]["engines"]}
+    assert {"auto", "whisper-mlx", "faster-whisper"} <= keys
+    assert data["outline"]["items"] > 40
+
+
+def test_api_models_never_fails_the_dialog(client):
+    """The mock client cannot list models; the dialog still has to open."""
+    data = client.get("/api/models").json()
+    assert data["models"] == []
+    assert data["error"]
+
+
+def test_set_audio_repoints_the_channels(client):
+    engine = client.app.state.test_engine
+    response = client.post(
+        "/api/control",
+        json={
+            "type": "set_audio",
+            "channels": [{"name": "Room", "source": "device:auto", "is_direct": False}],
+        },
+    )
+    assert response.status_code == 200
+    assert [c.source for c in engine.config.audio.channels] == ["device:auto"]
+    assert [c.name for c in engine.store.session.channels] == ["Room"]
+    assert engine.transcript.direct_channels == set()
+
+
+def test_set_audio_rejects_a_nameless_or_duplicate_channel(client):
+    engine = client.app.state.test_engine
+    before = [c.name for c in engine.config.audio.channels]
+    assert client.post("/api/control", json={"type": "set_audio", "channels": []}).status_code >= 400
+    duplicate = {
+        "type": "set_audio",
+        "channels": [{"name": "Host", "source": "device:auto"}, {"name": "Host", "source": "device:1"}],
+    }
+    assert client.post("/api/control", json=duplicate).status_code >= 400
+    assert [c.name for c in engine.config.audio.channels] == before
+
+
+def test_set_models_swaps_the_llm_and_defers_the_stt(client):
+    engine = client.app.state.test_engine
+    response = client.post(
+        "/api/control",
+        json={
+            "type": "set_models",
+            "tick_model": "deepseek-v4-pro-0813",
+            "final_model": "anthropic:claude-opus-5",
+            "stt_engine": "mock",
+            "stt_model": "",
+        },
+    )
+    assert response.status_code == 200
+    assert engine.config.llm.tick_model == "deepseek-v4-pro-0813"
+    assert engine.config.llm.final_model == "anthropic:claude-opus-5"
+    assert engine.config.stt.engine == "mock"
+
+
+def test_set_models_refuses_an_engine_that_does_not_exist(client):
+    engine = client.app.state.test_engine
+    before = engine.config.stt.engine
+    response = client.post(
+        "/api/control", json={"type": "set_models", "stt_engine": "telepathy"}
+    )
+    assert response.status_code >= 400
+    assert engine.config.stt.engine == before
+
+
+def test_upload_outline_replaces_the_map(client):
+    engine = client.app.state.test_engine
+    text = "# New show\n\n- First thing\n- Second thing\n"
+    response = client.post("/api/outline", json={"filename": "new.md", "text": text})
+    assert response.status_code == 200
+    assert response.json()["items"] == 2
+    assert [n.text for n in engine.store.outline.leaves()] == ["First thing", "Second thing"]
+    # It lands in the session directory, so the recording travels with its outline.
+    saved = engine.store.dir / "outline.uploaded.md"
+    assert saved.read_text(encoding="utf-8") == text
+    assert engine.store.session.outline_path == str(saved.resolve())
+
+
+def test_upload_outline_rejects_nothing_and_too_much(client):
+    assert client.post("/api/outline", json={"text": "   "}).status_code == 400
+    assert client.post("/api/outline", json={"text": "x" * 2_000_001}).status_code == 413

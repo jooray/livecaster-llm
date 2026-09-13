@@ -30,7 +30,7 @@ def test_defaults_match_the_spec():
     assert cfg.llm.manual_lock_minutes == 10
     assert cfg.stt.silence_ms == 600
     assert cfg.stt.max_utterance_s == 20
-    assert cfg.ui.host == "127.0.0.1" and cfg.ui.port == 8765
+    assert cfg.ui.host == "127.0.0.1" and cfg.ui.port == 8766
     assert cfg.wrapup.resolve_links is False
     assert [c.name for c in cfg.audio.channels] == ["Host"]
 
@@ -85,7 +85,9 @@ def test_summary_has_no_secrets():
     assert set(summary) == {
         "mode",
         "channels",
+        "sources",
         "stt_engine",
+        "stt_model",
         "language",
         "tick_model",
         "final_model",

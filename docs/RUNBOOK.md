@@ -49,7 +49,7 @@ Checklist:
 uv run livecaster run outlines/osnova.md --mode remote     # or --mode live
 ```
 
-The UI opens at <http://127.0.0.1:8765/>. Set `ui.host = "0.0.0.0"` to read it from a tablet.
+The UI opens at <http://127.0.0.1:8766/>. Set `ui.host = "0.0.0.0"` to read it from a tablet.
 
 1. Watch the level meters while you and the guest say a sentence each. Both should move.
 2. Press **Start**.
@@ -105,7 +105,7 @@ ten minutes. That is deliberate: it stops the tick loop from arguing with you.
 | Transcript stopped | Check the level meters. If a meter is dead, the device changed. **Pause**, fix it, **Resume**. |
 | Wrong topic went hot | Ignore it, or press `x` to skip the item so it stops coming back. |
 | The app crashed | `uv run livecaster run outlines/osnova.md --resume sessions/<dir>`. Everything except the utterance in flight is on disk. The clock, the transcript and every mark come back, and the clock waits for Start again. |
-| `port 8765 is already in use` | An older Livecaster is still running. Close it, or start this one on another port with `--set ui.port=8766`. |
+| `port 8766 is already in use` | An older Livecaster is still running. Close it, or start this one on another port with `--set ui.port=8767`. |
 | The transcript is in the wrong language | Click the 🌐 pill and pick one. It applies to the next utterance. With Parakeet this fixes the notes and drops wrong-alphabet lines but cannot force the words themselves. That needs a better microphone, or `stt.engine=whisper-mlx` (2.6 s per utterance, still fine live). |
 | The headphones sound like a phone call | Their microphone is open, so macOS switched the Bluetooth link to 16 kHz handsfree. That is macOS. Use a wired or USB mic and keep the headphones for listening. |
 | You pressed Finish too early | Press **Record again**. The clock and every mark continue, and the wrap-up re-runs over the whole thing at the end. |

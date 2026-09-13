@@ -166,16 +166,17 @@ class SessionStore:
 
 
 def create_session(
-    outline_path: str | Path,
+    outline_path: str | Path | None,
     config: Config,
     *,
     mode: str = "live",
     slug: str | None = None,
     base_dir: str | Path | None = None,
 ) -> SessionStore:
-    outline_file = Path(outline_path)
-    outline = parse_outline_file(outline_file)
-    stem = slug or outline_file.stem
+    """Open a session directory. ``outline_path`` may be None: the UI can upload one."""
+    outline_file = Path(outline_path) if outline_path else None
+    outline = parse_outline_file(outline_file) if outline_file else Outline()
+    stem = slug or (outline_file.stem if outline_file else "session")
     day = datetime.now(UTC).astimezone().strftime("%Y-%m-%d")
     root = Path(base_dir or config.session.dir)
     directory = root / f"{day}_{slugify(stem)}"
@@ -185,7 +186,7 @@ def create_session(
         n += 1
     session = Session(
         id=directory.name,
-        outline_path=str(outline_file.resolve()),
+        outline_path=str(outline_file.resolve()) if outline_file else "",
         mode=mode,  # type: ignore[arg-type]
         channels=[ChannelConfig(**c.model_dump()) for c in config.audio.channels],
         outline=outline.nodes,
@@ -193,9 +194,10 @@ def create_session(
         language=None if config.stt.language == "auto" else config.stt.language,
     )
     store = SessionStore(session, directory, outline, config)
-    store.save_outline_copy(outline_file)
+    if outline_file:
+        store.save_outline_copy(outline_file)
     store.snapshot(force=True)
-    store.log_event("created", 0.0, outline=str(outline_file), mode=mode)
+    store.log_event("created", 0.0, outline=str(outline_file or ""), mode=mode)
     return store
 
 

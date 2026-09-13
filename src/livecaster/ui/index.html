@@ -35,6 +35,7 @@
     <button data-action="tick_now">Tick now</button>
     <button data-action="reload_outline">Reload outline</button>
     <button id="btn-density" title="Compact / full text (d)">▥</button>
+    <button id="btn-settings" title="Audio, models and outline (,)">⚙</button>
     <button id="btn-theme" title="Toggle theme">◐</button>
     <button id="btn-help" title="?">?</button>
   </div>
@@ -44,6 +45,14 @@
   <section id="outline-pane">
     <div class="edge-indicator top hidden" id="edge-up">▲ <span>0</span> hot</div>
     <div id="outline" class="outline" tabindex="0"></div>
+    <div id="outline-empty" class="outline-empty hidden">
+      <h2>No outline yet</h2>
+      <p>Drop a Markdown file anywhere on this panel, or
+        <button type="button" id="btn-pick-outline" class="link">choose one</button>.</p>
+      <p class="muted">It is copied into the session directory and watched for changes,
+        so you can keep editing it while you record.</p>
+    </div>
+    <div id="outline-drop" class="outline-drop hidden"><span>Drop the outline here</span></div>
     <div class="edge-indicator bottom hidden" id="edge-down">▼ <span>0</span> hot</div>
   </section>
 
@@ -117,6 +126,46 @@
   <form method="dialog"><button>Close</button></form>
 </dialog>
 
+<dialog id="settings">
+  <h2>Settings</h2>
+  <p class="muted">For this session, from the next tick or the next Start.
+    Persist anything worth keeping in <code>livecaster.toml</code>.</p>
+
+  <h3>Audio channels</h3>
+  <div id="settings-channels" class="channel-list"></div>
+  <p id="settings-audio-note" class="muted"></p>
+  <div class="row-actions">
+    <button type="button" id="settings-add-channel">+ Channel</button>
+    <button type="button" id="settings-rescan">Rescan devices</button>
+  </div>
+
+  <h3>Models</h3>
+  <div class="settings-grid">
+    <label>Ticks
+      <input id="settings-tick-model" list="settings-models" spellcheck="false" autocomplete="off"></label>
+    <label>Wrap-up
+      <input id="settings-final-model" list="settings-models" spellcheck="false" autocomplete="off"></label>
+    <label>Speech engine <select id="settings-stt-engine"></select></label>
+    <label>Speech model
+      <input id="settings-stt-model" placeholder="the engine's default" spellcheck="false" autocomplete="off"></label>
+  </div>
+  <datalist id="settings-models"></datalist>
+  <p id="settings-model-note" class="muted"></p>
+
+  <h3>Outline</h3>
+  <p id="settings-outline-note" class="muted"></p>
+  <div class="row-actions">
+    <button type="button" id="settings-pick-outline">Load a Markdown file…</button>
+  </div>
+
+  <div class="dialog-actions">
+    <button type="button" class="primary" id="settings-apply">Apply</button>
+    <button type="button" onclick="this.closest('dialog').close()">Cancel</button>
+  </div>
+</dialog>
+
+<input type="file" id="outline-file" accept=".md,.markdown,.txt,text/markdown,text/plain" hidden>
+
 <dialog id="usage">
   <h2>Usage</h2>
   <div id="usage-body"></div>
@@ -137,6 +186,7 @@
     <tr><td>drag the divider</td><td>resize the panels (double-click to reset)</td></tr>
     <tr><td>click the LLM pill</td><td>how often the model is asked</td></tr>
     <tr><td>click the 🌐 pill</td><td>transcription language</td></tr>
+    <tr><td><kbd>,</kbd></td><td>settings: audio, models, outline</td></tr>
     <tr><td><kbd>space</kbd></td><td>pause / resume</td></tr>
     <tr><td><kbd>?</kbd></td><td>this help</td></tr>
   </table>

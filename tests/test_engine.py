@@ -15,6 +15,7 @@ from livecaster.config import ChannelConfig, Config
 from livecaster.engine import ChannelPipeline, Engine
 from livecaster.llm.mock import MockLLM
 from livecaster.session.models import Segment
+from livecaster.session.reducer import ManualAction
 from livecaster.session.store import create_session, load_session
 from livecaster.session.transcript import Transcript
 from livecaster.stt.base import STTResult
@@ -635,4 +636,109 @@ async def test_preflight_runs_in_the_background(store, config: Config, fixtures:
     assert store.session.preflight.nodes
     # The fast lane must pick up the trigger phrases the pass just produced.
     assert engine.fastlane.triggers
+    await engine.shutdown()
+
+
+# --- settings from the UI: channels, models, an uploaded outline ------------
+
+
+async def test_set_channels_reopens_the_sources_mid_recording(
+    tmp_path: Path, osnova_path: Path, config: Config, fixtures: Path
+):
+    """Swapping a microphone must not cost the clock, the transcript or the map."""
+    first, second = write_wav(tmp_path / "a.wav"), write_wav(tmp_path / "b.wav")
+    config.audio.channels = [ChannelConfig(name="Host", source=f"file:{first}", record=False)]
+    config.audio.record = False
+    store = create_session(osnova_path, config, mode="live", base_dir=tmp_path / "sessions")
+    engine = Engine(store, config, MockLLM(fixtures / "tick_responses"), clock=ManualClock())
+    await engine.startup()
+    await engine.start_capture()
+    engine.add_segment(Segment(id="S1", channel="Host", speaker="Host", t0=0, t1=2, text="ahoj"))
+
+    await engine.set_channels(
+        [
+            ChannelConfig(name="Room", source=f"file:{second}", record=False),
+            ChannelConfig(name="Guest", source=f"file:{second}", record=False, is_direct=True),
+        ]
+    )
+    assert store.session.status == "running"
+    assert [p.cfg.name for p in engine.channels] == ["Room", "Guest"]
+    assert [c.name for c in store.session.channels] == ["Room", "Guest"]
+    assert engine.transcript.direct_channels == {"Guest"}
+    assert len(engine.transcript.segments) == 1     # nothing was thrown away
+    await engine.shutdown()
+
+
+async def test_set_channels_that_cannot_open_drops_back_to_idle(
+    tmp_path: Path, osnova_path: Path, config: Config, fixtures: Path
+):
+    """Better a session that says Start again than one that records silence."""
+    wav = write_wav(tmp_path / "a.wav")
+    config.audio.channels = [ChannelConfig(name="Host", source=f"file:{wav}", record=False)]
+    config.audio.record = False
+    store = create_session(osnova_path, config, mode="live", base_dir=tmp_path / "sessions")
+    engine = Engine(store, config, MockLLM(fixtures / "tick_responses"), clock=ManualClock())
+    toasts: list[dict] = []
+    store.subscribe(lambda kind, payload: toasts.append(payload) if kind == "toast" else None)
+    await engine.startup()
+    await engine.start_capture()
+
+    with pytest.raises(FileNotFoundError):
+        await engine.set_channels([ChannelConfig(name="Host", source=f"file:{tmp_path / 'gone.wav'}")])
+    assert store.session.status == "idle"
+    assert engine.channels == []
+    assert any("Nothing is recording" in t["text"] for t in toasts)
+    await engine.shutdown()
+
+
+async def test_set_channels_refuses_a_duplicate_name(engine: Engine):
+    with pytest.raises(ValueError, match="share a name"):
+        await engine.set_channels(
+            [ChannelConfig(name="Host", source="device:auto"), ChannelConfig(name="Host", source="device:1")]
+        )
+
+
+async def test_set_models_lands_on_the_next_tick(engine: Engine):
+    await engine.startup()
+    engine.set_models(tick_model="deepseek-v4-pro-0813", final_model="", stt_engine="mock")
+    assert engine.config.llm.tick_model == "deepseek-v4-pro-0813"
+    assert engine.config.llm.final_model == "claude-sonnet-5"     # "" leaves it alone
+    assert engine.config.stt.engine == "mock"
+    assert engine._stt_facts is None                             # the pill re-probes
+    with pytest.raises(ValueError, match="cannot use STT engine"):
+        engine.set_models(stt_engine="telepathy")
+    await engine.shutdown()
+
+
+async def test_a_session_can_start_with_no_outline_and_be_handed_one(
+    tmp_path: Path, config: Config, fixtures: Path
+):
+    store = create_session(None, config, mode="live", base_dir=tmp_path / "sessions")
+    assert store.session.outline_path == ""
+    assert store.outline.nodes == []
+
+    engine = Engine(store, config, MockLLM(fixtures / "tick_responses"), clock=ManualClock())
+    await engine.startup()
+    assert engine.reload_outline() is False     # nothing to reload yet, and it says so
+
+    assert engine.load_outline_text("# Show\n\n- One thing\n- Another\n", "episode.md") is True
+    assert [n.text for n in store.outline.leaves()] == ["One thing", "Another"]
+    assert store.session.outline_path.endswith("outline.uploaded.md")
+    assert engine.load_outline_text("   ") is False
+    await engine.shutdown()
+
+
+async def test_an_uploaded_outline_keeps_what_was_already_covered(
+    tmp_path: Path, osnova_path: Path, config: Config, fixtures: Path
+):
+    store = create_session(osnova_path, config, mode="live", base_dir=tmp_path / "sessions")
+    engine = Engine(store, config, MockLLM(fixtures / "tick_responses"), clock=ManualClock())
+    await engine.startup()
+    kept = store.outline.leaves()[0]
+    engine.manual(ManualAction(kind="mark", node_id=kept.id, status="covered"))
+
+    text = osnova_path.read_text(encoding="utf-8") + "\n- Something brand new\n"
+    assert engine.load_outline_text(text, "osnova.md") is True
+    assert store.session.nodes[kept.id].status == "covered"
+    assert any(n.text == "Something brand new" for n in store.outline.leaves())
     await engine.shutdown()

@@ -64,7 +64,7 @@ Livecaster runs from a WAV file or from a previously saved transcript, at real t
 | Primary platform | macOS 14+ on Apple Silicon (M1 or later, 16 GB RAM recommended) |
 | Secondary platform | Linux x86_64 (CPU works; NVIDIA GPU optional) |
 | Language | Python 3.12 (pin in `.python-version`; MLX and onnxruntime wheels lag newer Pythons), managed by `uv`. Never install outside the virtual environment. |
-| UI | Browser-based, served from the Python process on `127.0.0.1:8765` (configurable to `0.0.0.0` for a tablet). Plain HTML/CSS/JS, no build step, no service worker. |
+| UI | Browser-based, served from the Python process on `127.0.0.1:8766` (configurable to `0.0.0.0` for a tablet). Plain HTML/CSS/JS, no build step, no service worker. |
 | LLM | Venice API (OpenAI-compatible), `https://api.venice.ai/api/v1`, key in `VENICE_API_KEY`. Tick model `deepseek-v4-flash-0731`. Final model configurable, default the same; `deepseek-v4-pro-0813` recommended for wrap-up. |
 | STT | Local only. Default engines: `parakeet-mlx` on macOS, `onnx-asr` on Linux, Whisper variants as fallback. See §7.3. |
 | Voice activity detection | Silero VAD via `pysilero-vad` (onnxruntime, no torch). |
@@ -129,6 +129,18 @@ Each requirement has an ID for traceability in the implementation plan.
 - **FR-32** `livecaster replay <file.wav | session_dir> [--speed 4] [--mock-llm]` runs the same pipeline from a file. `--mock-llm` uses canned responses from a fixtures directory so the UI and reducer can be developed offline.
 - **FR-33** `livecaster check` verifies: Venice key and model availability, STT model download and a 3-second self-test, audio devices, AudioTee availability (macOS).
 
+### Live reconfiguration
+
+- **FR-34** The transcription language can be locked or released from the UI, mid-session. The STT worker reads it per utterance, so it takes effect on the next thing anyone says. An engine that detects the language itself says so rather than pretending to be forced.
+- **FR-35** The tick loop (interval, minimum new words, burst threshold) can be retuned from the UI, mid-session. It lands on the next tick.
+- **FR-36** Audio channels can be changed from the UI: pick a device by name, add or drop a channel, mark which one is `direct`. `GET /api/settings` enumerates the machine's input devices and AudioTee candidates. Applied while recording, the pipelines are rebuilt in place and the clock, the transcript and the map carry on; a channel that will not open drops the session back to `idle` rather than leaving it "running" with nothing on the wire.
+- **FR-37** The tick model, the wrap-up model and the STT engine can be changed from the UI. The reasoner reads the model per pass, so the LLM half lands on the next tick; the STT worker owns a loaded model, so a new engine takes over at the next Start. An engine whose extra is not installed is shown as unavailable rather than failing at Start.
+- **FR-38** An outline can be loaded from the UI — dropped on the map or picked in Settings — so a session can start with no outline at all (`livecaster run` with no argument). The file is written into the session directory, becomes the one the watcher follows, and goes through the ordinary FR-04 remap, so states already earned survive. An outline that arrives after the session opened gets its pre-flight pass then.
+
+### Audio device resolution
+
+- **FR-39** `source = "device:auto"` is the default and means whichever input device exists at Start, the system default first. A named device that is not present at Start falls back to an available one with a warning toast and a `device_fallback` event, rather than refusing to record.
+
 ## 5. Non-functional requirements
 
 | Area | Requirement |
@@ -161,7 +173,7 @@ Each requirement has an ID for traceability in the implementation plan.
                       │   │ FastAPI + WebSocket broadcast                          │ │
                       │   └────────────────────────────────────────────────────────┘ │
                       └──────────────────────────────┬───────────────────────────────┘
-                                                     │ ws://127.0.0.1:8765/ws
+                                                     │ ws://127.0.0.1:8766/ws
                                             ┌────────▼─────────┐
                                             │ Browser UI       │  (laptop, or tablet on LAN)
                                             └──────────────────┘
@@ -586,7 +598,7 @@ resolve_links = false
 
 [ui]
 host = "127.0.0.1"                         # 0.0.0.0 to reach it from a tablet
-port = 8765
+port = 8766
 open_browser = true
 theme = "dark"
 

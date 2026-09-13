@@ -18,7 +18,10 @@ ReasoningEffort = Literal["none", "low", "medium", "high", "xhigh", "max"]
 
 class ChannelConfig(BaseModel):
     name: str = "Host"
-    source: str = "device:default"
+    #: ``device:auto`` is whichever microphone is plugged in right now, so a config
+    #: file survives a headset staying in its case. Name one to pin it, or pick one
+    #: under the cog in the UI; a name that is gone falls back to auto with a warning.
+    source: str = "device:auto"
     channel_index: int | None = None
     is_direct: bool = False
     record: bool = True
@@ -106,7 +109,7 @@ class WrapupConfig(BaseModel):
 
 class UIConfig(BaseModel):
     host: str = "127.0.0.1"
-    port: int = 8765
+    port: int = 8766
     open_browser: bool = True
     theme: Literal["dark", "light"] = "dark"
 
@@ -128,7 +131,9 @@ class Config(BaseModel):
         return {
             "mode": self.audio.mode,
             "channels": [c.name for c in self.audio.channels],
+            "sources": [c.source for c in self.audio.channels],
             "stt_engine": self.stt.engine,
+            "stt_model": self.stt.model,
             "language": self.stt.language,
             "tick_model": self.llm.tick_model,
             "final_model": self.llm.final_model,

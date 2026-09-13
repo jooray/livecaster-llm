@@ -12,7 +12,14 @@ record_native = false # also keep the untouched device-rate stream
 # --- In person, one shared microphone: keep a single channel and drop the Guest block.
 [[audio.channels]]
 name = "Host"
-source = "device:MacBook Pro Microphone"   # device:<name or index> | audiotee:<app or pid> | file:<path>
+# device:auto | device:<name or index> | audiotee:<app or pid> | file:<path>
+#
+# `device:auto` is whichever microphone is plugged in when you press Start, the
+# system default first — so the config survives a headset staying in its case.
+# Naming one pins it; if that name is gone at Start, Livecaster records from an
+# available device and says so rather than refusing to start. The cog in the UI
+# lists every device by name and switches channels without a restart.
+source = "device:auto"
 channel_index = 0                          # one channel of a multi-channel interface; omit to average
 
 # --- Remote: the guest arrives through the browser. Wear headphones.
@@ -97,7 +104,7 @@ resolve_links = false   # web search for missing URLs; slower and costs more
 
 [ui]
 host = "127.0.0.1"      # 0.0.0.0 to open the map on a tablet on your LAN
-port = 8765
+port = 8766
 open_browser = true
 theme = "dark"          # dark | light
 

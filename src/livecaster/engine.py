@@ -293,38 +293,11 @@ class Engine:
             self.store.emit("toast", {"level": "info", "text": "Recording again — the wrap-up will re-run."})
         self.stt = self._build_stt()
         self.stt.start()
-        audio_dir = self.store.dir / "audio"
-        for cfg in session.channels:
-            recorder = None
-            native = None
-            record_this = self.config.audio.record and cfg.record and not cfg.source.startswith("file:")
-            if record_this:
-                recorder = WavRecorder(WavRecorder.unique_path(audio_dir, cfg.name.lower()))
-                recorder.open()
-                if self.config.audio.record_native and cfg.source.startswith("device:"):
-                    native = WavRecorder(WavRecorder.unique_path(audio_dir, f"{cfg.name.lower()}-native"))
-            pipeline = ChannelPipeline(
-                cfg,
-                self.config,
-                self.clock.now,
-                self._on_utterance,
-                recorder,
-                speed=self.replay_speed,
-                on_finished=self._on_source_finished,
-                native_recorder=native,
-            )
-            self.channels.append(pipeline)
+        self.channels = self._build_channels()
         try:
-            for pipeline in self.channels:
-                pipeline.start()
+            self._start_channels()
         except Exception as exc:
             log.error("cannot start capture: %s", exc)
-            for pipeline in self.channels:
-                try:
-                    pipeline.stop()
-                except Exception:  # pragma: no cover - already failing
-                    pass
-            self.channels.clear()
             if self.stt is not None:
                 self.stt.stop(drain=False)
                 self.stt = None
@@ -338,6 +311,64 @@ class Engine:
         self.store.log_event("start", self.clock.now())
         self.store.emit("status_changed", "running")
         log.info("capture started on %d channel(s)", len(self.channels))
+
+    def _build_channels(self) -> list[ChannelPipeline]:
+        """One pipeline per configured channel, recorders opened, nothing started yet."""
+        audio_dir = self.store.dir / "audio"
+        built: list[ChannelPipeline] = []
+        for cfg in self.store.session.channels:
+            recorder = None
+            native = None
+            record_this = self.config.audio.record and cfg.record and not cfg.source.startswith("file:")
+            if record_this:
+                recorder = WavRecorder(WavRecorder.unique_path(audio_dir, cfg.name.lower()))
+                recorder.open()
+                if self.config.audio.record_native and cfg.source.startswith("device:"):
+                    native = WavRecorder(WavRecorder.unique_path(audio_dir, f"{cfg.name.lower()}-native"))
+            built.append(
+                ChannelPipeline(
+                    cfg,
+                    self.config,
+                    self.clock.now,
+                    self._on_utterance,
+                    recorder,
+                    speed=self.replay_speed,
+                    on_finished=self._on_source_finished,
+                    native_recorder=native,
+                )
+            )
+        return built
+
+    def _start_channels(self) -> None:
+        """Open every source, or close the ones that did open and re-raise.
+
+        A half-started set is worse than none: the meters would move while the
+        other microphone silently recorded nothing.
+        """
+        try:
+            for pipeline in self.channels:
+                pipeline.start()
+        except Exception:
+            for pipeline in self.channels:
+                try:
+                    pipeline.stop()
+                except Exception:  # pragma: no cover - already failing
+                    pass
+            self.channels.clear()
+            raise
+        for pipeline in self.channels:
+            note = getattr(pipeline.source, "fallback_note", None)
+            if note:
+                self.store.log_event("device_fallback", self.clock.now(), channel=pipeline.cfg.name)
+                self.store.emit("toast", {"level": "warn", "text": note})
+
+    async def _stop_channels(self) -> None:
+        for pipeline in self.channels:
+            try:
+                await asyncio.to_thread(pipeline.stop)
+            except Exception:  # pragma: no cover - stopping must never raise
+                log.debug("error stopping a pipeline", exc_info=True)
+        self.channels.clear()
 
     async def pause(self) -> None:
         session = self.store.session
@@ -430,12 +461,7 @@ class Engine:
 
     async def _teardown_capture(self, *, drain: bool = False) -> None:
         """Stop and forget every pipeline. Safe to call when nothing is running."""
-        for pipeline in self.channels:
-            try:
-                await asyncio.to_thread(pipeline.stop)
-            except Exception:  # pragma: no cover - stopping must never raise
-                log.debug("error stopping a pipeline", exc_info=True)
-        self.channels.clear()
+        await self._stop_channels()
         if self.stt is not None:
             await asyncio.to_thread(self.stt.stop, drain)
             self.stt = None
@@ -580,6 +606,112 @@ class Engine:
             llm.burst_words,
         )
 
+    async def set_channels(self, channels: list[ChannelConfig]) -> None:
+        """Repoint the microphones from the UI (FR-36).
+
+        Idle, this is bookkeeping and the new devices open at the next Start. While
+        recording, the pipelines are rebuilt in place: the clock, the transcript and
+        everything the model has already been told carry straight on. A channel that
+        will not open drops the session back to idle rather than leaving it
+        "running" with nothing on the wire.
+        """
+        if not channels:
+            raise ValueError("a session needs at least one audio channel")
+        names = [c.name.strip() for c in channels]
+        if not all(names):
+            raise ValueError("every channel needs a name")
+        if len(set(names)) != len(names):
+            raise ValueError("two channels cannot share a name")
+        session = self.store.session
+        self.config.audio.channels = channels
+        session.channels = [ChannelConfig(**c.model_dump()) for c in channels]
+        self.transcript.direct_channels = {c.name for c in channels if c.is_direct}
+        self.store.mark_dirty()
+        self.store.log_event(
+            "channels", self.clock.now(), channels=[{"name": c.name, "source": c.source} for c in channels]
+        )
+        described = ", ".join(f"{c.name} ← {c.source}" for c in channels)
+
+        if session.status not in ("running", "paused"):
+            self.store.emit("state", session)
+            self.store.emit("toast", {"level": "success", "text": f"Audio: {described}"})
+            return
+
+        was_paused = session.status == "paused"
+        await self._stop_channels()
+        self.channels = self._build_channels()
+        try:
+            self._start_channels()
+        except Exception as exc:
+            log.error("cannot reopen the channels: %s", exc)
+            session.status = "idle"
+            self.clock.pause()
+            self.store.mark_dirty()
+            self.store.emit("status_changed", "idle")
+            self.store.emit(
+                "toast",
+                {"level": "error", "text": f"Cannot open the new channels: {exc}. Nothing is recording."},
+            )
+            raise
+        if was_paused:
+            for pipeline in self.channels:
+                pipeline.pause()
+        self.store.emit("state", session)
+        self.store.emit("toast", {"level": "success", "text": f"Audio: {described}"})
+
+    def set_models(
+        self,
+        *,
+        tick_model: str = "",
+        final_model: str = "",
+        stt_engine: str = "",
+        stt_model: str | None = None,
+    ) -> None:
+        """Swap the models from the UI (FR-37).
+
+        The reasoner reads the model off the config on every pass, so the LLM half
+        lands on the next tick. The STT half cannot: the worker thread owns a loaded
+        model, so a change there waits for the next Start.
+        """
+        llm, stt = self.config.llm, self.config.stt
+        notes: list[str] = []
+        if tick_model.strip() and tick_model.strip() != llm.tick_model:
+            llm.tick_model = tick_model.strip()
+            notes.append(f"ticks → {llm.tick_model}")
+        if final_model.strip() and final_model.strip() != llm.final_model:
+            llm.final_model = final_model.strip()
+            notes.append(f"wrap-up → {llm.final_model}")
+
+        engine = (stt_engine or stt.engine).strip()
+        model = stt.model if stt_model is None else stt_model.strip()
+        if engine != stt.engine or model != stt.model:
+            try:
+                select_engine(engine, model, stt.language, stt.cpu_threads)
+            except Exception as exc:
+                raise ValueError(f"cannot use STT engine {engine!r}: {exc}") from exc
+            stt.engine, stt.model = engine, model
+            # The status pill caches what it probed; it has just gone stale.
+            self._stt_facts = None
+            label = f"STT → {engine}" + (f" ({model})" if model else "")
+            if self.store.session.status in ("running", "paused"):
+                notes.append(f"{label}, at the next Start")
+            else:
+                notes.append(label)
+
+        if not notes:
+            self.store.emit("toast", {"level": "info", "text": "Models unchanged."})
+            return
+        self.store.mark_dirty()
+        self.store.log_event(
+            "models",
+            self.clock.now(),
+            tick_model=llm.tick_model,
+            final_model=llm.final_model,
+            stt_engine=stt.engine,
+            stt_model=stt.model,
+        )
+        self.store.emit("toast", {"level": "success", "text": " · ".join(notes)})
+
     def set_language(self, language: str | None) -> None:
         """Lock (or release) the transcription language, live (FR-34).
 
@@ -621,9 +753,42 @@ class Engine:
         else:
             self.store.emit("toast", {"level": "info", "text": "Language detection back to auto."})
 
+    #: A browser upload is written here, under the session directory, so the outline
+    #: travels with the recording and the file watcher can follow it on disk.
+    UPLOAD_NAME = "outline.uploaded.md"
+
+    def load_outline_text(self, text: str, filename: str = "") -> bool:
+        """Adopt an outline uploaded from the browser (FR-38).
+
+        The text is written into the session directory and becomes the file the
+        watcher follows, so editing it afterwards still reloads live. Everything
+        else is the ordinary reload path: states survive by matching text, and
+        anything that no longer appears is retired rather than lost.
+        """
+        if not text.strip():
+            self.store.emit("toast", {"level": "error", "text": "That file is empty."})
+            return False
+        session = self.store.session
+        target = self.store.dir / self.UPLOAD_NAME
+        target.write_text(text, encoding="utf-8")
+        session.outline_path = str(target.resolve())
+        self.store.log_event("outline_uploaded", self.clock.now(), filename=filename or self.UPLOAD_NAME)
+        if not self.reload_outline():
+            return False
+        # An outline that arrives after the session opened never got a pre-flight
+        # pass; it is the first thing the host would otherwise miss.
+        if self.config.llm.preflight and session.preflight is None and self.store.outline.leaves():
+            self._tasks.append(asyncio.create_task(self._preflight_in_background(), name="preflight"))
+        return True
+
     def reload_outline(self) -> bool:
         """Re-parse the source outline, carry states across, rebuild derived data (FR-04)."""
         session = self.store.session
+        if not session.outline_path:
+            self.store.emit(
+                "toast", {"level": "warn", "text": "No outline yet — drop a Markdown file on the map."}
+            )
+            return False
         path = Path(session.outline_path)
         if not path.is_file():
             self.store.emit("toast", {"level": "error", "text": f"outline not found: {path}"})
@@ -706,19 +871,36 @@ class Engine:
 
 
 def watch_outline(engine: Engine, stop: threading.Event) -> threading.Thread:
-    """Background watcher that calls :meth:`Engine.reload_outline` on file changes."""
+    """Background watcher that calls :meth:`Engine.reload_outline` on file changes.
+
+    The path is re-read each time around: a session can start with no outline at
+    all and be handed one from the browser later, and the watcher has to follow it
+    there rather than keep staring at a file that is no longer the outline.
+    """
 
     def run() -> None:
         from watchfiles import watch
 
-        path = Path(engine.store.session.outline_path)
-        if not path.is_file():
-            return
-        for _changes in watch(str(path), stop_event=stop, debounce=400, step=200):
-            loop = engine.loop
-            if loop is None:
+        while not stop.is_set():
+            path = Path(engine.store.session.outline_path or "")
+            if not path.is_file():
+                stop.wait(1.0)
                 continue
-            loop.call_soon_threadsafe(engine.reload_outline)
+            watched = str(path)
+            for changes in watch(
+                watched,
+                stop_event=stop,
+                debounce=400,
+                step=200,
+                rust_timeout=1000,
+                yield_on_timeout=True,
+            ):
+                if stop.is_set() or engine.store.session.outline_path != watched:
+                    break  # an upload repointed us; pick the new file up on the next pass
+                loop = engine.loop
+                if not changes or loop is None:
+                    continue
+                loop.call_soon_threadsafe(engine.reload_outline)
 
     thread = threading.Thread(target=run, name="outline-watch", daemon=True)
     thread.start()

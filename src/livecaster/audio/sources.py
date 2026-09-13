@@ -12,7 +12,7 @@ from typing import Protocol
 
 import numpy as np
 
-from livecaster.audio.devices import audiotee_binary, resolve_device
+from livecaster.audio.devices import audiotee_binary, default_input_device, resolve_device
 from livecaster.log import get_logger
 
 log = get_logger(__name__)
@@ -103,6 +103,9 @@ class DeviceSource:
         self.clock = clock or time.monotonic
         #: Called with the mono block *before* resampling, for `record_native`.
         self.on_native = on_native
+        #: Set when the configured device was gone and another one was opened, so
+        #: the engine can say so out loud instead of the host wondering later.
+        self.fallback_note: str | None = None
         self._stream = None
         self._slicer: _FrameSlicer | None = None
         self._resampler: _Resampler | None = None
@@ -112,7 +115,7 @@ class DeviceSource:
     def start(self, on_frames: OnFrames) -> None:
         import sounddevice as sd
 
-        device = resolve_device(self.device_spec)
+        device = self._resolve()
         info = sd.query_devices(device, "input") if device is not None else sd.query_devices(kind="input")
         max_in = int(info["max_input_channels"])
         self.channels = max_in if self.channel_index is not None else min(max_in, 2)
@@ -145,6 +148,26 @@ class DeviceSource:
         )
         self._stream.start()
         log.info("%s: capturing from device %s at %d Hz", self.name, info["name"], rate)
+
+    def _resolve(self) -> int | None:
+        """The configured device, or the first one that exists when it is not plugged in (FR-39).
+
+        Unplugging the headset you named in `livecaster.toml` used to mean the
+        session refused to start. Falling back and saying so is the better trade:
+        a recording on the wrong microphone beats no recording at all.
+        """
+        try:
+            return resolve_device(self.device_spec)
+        except ValueError as exc:
+            chosen = default_input_device()
+            if chosen is None:
+                raise
+            self.fallback_note = (
+                f"{self.name}: {exc}. Recording from {chosen.name} instead — "
+                "pick another one under the cog."
+            )
+            log.warning("%s", self.fallback_note)
+            return chosen.index
 
     def stop(self) -> None:
         if self._stream is not None:

@@ -8,6 +8,14 @@ import subprocess
 from dataclasses import dataclass
 from typing import Any
 
+from livecaster.log import get_logger
+
+log = get_logger(__name__)
+
+#: Source specs that mean "whatever microphone this machine has right now". A
+#: headset that is in its case should not be a reason to refuse to record.
+AUTO_DEVICE = {"auto", "first", "first-available"}
+
 
 @dataclass
 class DeviceInfo:
@@ -71,8 +79,24 @@ def list_devices() -> list[DeviceInfo]:
     return out
 
 
+def default_input_device() -> DeviceInfo | None:
+    """The system default input, or simply the first one this machine has."""
+    devices = list_devices()
+    if not devices:
+        return None
+    for d in devices:
+        if d.is_default:
+            return d
+    return devices[0]
+
+
 def resolve_device(spec: str | int | None) -> int | None:
-    """Accept an index, an exact name, or a case-insensitive substring."""
+    """Accept an index, an exact name, a case-insensitive substring, or ``auto``.
+
+    ``auto`` is whichever microphone exists right now, the system default first.
+    It is the default source precisely so that a config file never has to name a
+    Bluetooth headset that is only sometimes connected.
+    """
     if spec is None or spec == "" or spec == "default":
         return None
     if isinstance(spec, int):
@@ -80,6 +104,11 @@ def resolve_device(spec: str | int | None) -> int | None:
     text = str(spec).strip()
     if text.isdigit():
         return int(text)
+    if text.casefold() in AUTO_DEVICE:
+        chosen = default_input_device()
+        if chosen is None:
+            raise ValueError("this machine has no audio input device")
+        return chosen.index
     devices = list_devices()
     for d in devices:
         if d.name == text:

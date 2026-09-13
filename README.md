@@ -55,7 +55,8 @@ uv run livecaster check
 `check` verifies the Venice key and models, resolves every microphone named in `livecaster.toml`,
 downloads and self-tests the STT model, lists audio devices, and (on macOS) reports AudioTee
 availability and the permissions you need to grant. A device that was renamed or is simply not
-plugged in fails here rather than at the moment you press Start.
+plugged in is reported here rather than at the moment you press Start — though it no longer stops a
+recording: an unavailable microphone falls back to whichever one is connected, and says so.
 The first run downloads about 2.4 GB of Parakeet weights, so do not leave it until five minutes
 before a recording; `--no-stt` skips that part. On a flaky connection, pull the model separately
 with `uv run hf download mlx-community/parakeet-tdt-0.6b-v3`, which retries properly instead of
@@ -73,10 +74,26 @@ uv run livecaster run outlines/my-episode.md --mode live
 `outlines/` is git-ignored, because an episode plan usually has guest notes and private context in
 it. Any Markdown works: headings, bullets, nested bullets, `Question:` lines, whole paragraphs.
 
-This parses the outline, starts the server on <http://127.0.0.1:8765> and opens the UI. Unless you
+You can also start with nothing — `uv run livecaster run` — and drop the Markdown file onto the map
+once the UI is open, or pick it under the cog. The file is copied into the session directory and
+watched from there, so you can keep editing it while you record.
+
+This parses the outline, starts the server on <http://127.0.0.1:8766> and opens the UI. Unless you
 pass `--no-preflight`, one LLM pass then runs in the background and fills in suggested questions and
 trigger phrases per topic; the map is on screen while that happens. Press **Start** in the UI when
 you are ready and **Finish** when you are done.
+
+`./start.sh` is the same thing without the typing: it installs the dependencies on a first run,
+takes the newest outline in `outlines/` when you do not name one, and opens the browser once the
+server actually answers rather than a second after launch.
+
+```bash
+./start.sh                                   # newest outline in outlines/
+./start.sh outlines/my-episode.md --mode remote
+./start.sh --sync                            # re-install dependencies first
+```
+
+Anything it does not recognise goes straight to `livecaster run`.
 
 The clock starts at **Start**, not when the process launched, so chapter and subtitle timestamps
 match the recording rather than however long you spent setting up.
@@ -167,7 +184,7 @@ relative to that mark.
 
 | Command | What it does |
 |---|---|
-| `livecaster run <outline.md> [--mode live\|remote] [--resume DIR] [--slug S] [--no-preflight] [--set k=v]` | Start a session. |
+| `livecaster run [outline.md] [--mode live\|remote] [--resume DIR] [--slug S] [--no-preflight] [--set k=v]` | Start a session. Without an outline, drop one on the map. |
 | `livecaster devices` | List input devices (and AudioTee candidate processes on macOS). |
 | `livecaster replay <file\|dir> [--outline M] [--speed N] [--mock-llm] [--serve]` | Run the pipeline from a file. The source can also be given as `--transcript`, `--wav` or `--session`. |
 | `livecaster wrapup <session_dir> [--model M] [--resolve-links]` | Re-run the wrap-up on an existing session. |
@@ -206,10 +223,32 @@ Livecaster reads `livecaster.toml` from the working directory, then `~/.config/l
 Copy [`livecaster.toml.example`](livecaster.toml.example) and edit. Environment variables
 (`LIVECASTER_LLM__TICK_MODEL=...`) and `--set` overrides win over the file, in that order.
 
+### From the UI
+
+The cog in the top bar (or `,`) opens Settings, which covers the three things that change between
+episodes without a restart:
+
+- **Audio channels.** Every input device the machine has, plus the AudioTee candidates on macOS.
+  Add or drop a channel, rename one, mark which one is `direct`. Applied while recording, the
+  microphones are reopened in place and the clock, the transcript and the map carry on.
+- **Models.** The tick model, the wrap-up model and the speech engine. The LLM half lands on the
+  next tick; a new speech engine loads at the next Start, because the worker thread owns a loaded
+  model. The suggestion list is the provider's own, fetched when the dialog opens.
+- **Outline.** Load a different Markdown file. Dropping one anywhere on the map does the same.
+
+None of it is written back to `livecaster.toml` — the file keeps your comments, and the dialog is
+for the evening's exception. Put anything you want every time in the file.
+
+The default source is `device:auto`, which is whichever microphone is plugged in at Start, the
+system default first. Naming a device pins it; if that name is gone when you press Start — the
+headset is in its case — Livecaster records from an available one and says so in a toast, rather
+than refusing to start.
+
 ## Keyboard
 
 `j`/`k` move the selection · `c` covered · `x` skipped · `p` pin · `1`/`2`/`3` jump to a hot item ·
-`m` sync mark · `t` toggle transcript · `d` compact/full text · `space` pause/resume · `?` help.
+`m` sync mark · `t` toggle transcript · `d` compact/full text · `space` pause/resume · `,` settings ·
+`?` help.
 
 The live surface is deliberately terse: the map marks topics, the **Now** panel shows one line and
 three labels of at most five words each. Click an item, or press `d`, to see the model's reason

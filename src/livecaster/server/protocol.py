@@ -121,6 +121,36 @@ class SetTicksAction(BaseModel):
     burst_words: int = Field(ge=10, le=2000)
 
 
+class ChannelSpec(BaseModel):
+    """One audio channel as the Settings dialog sends it back.
+
+    The bounds are the ones a slip of the mouse could cross; anything the UI
+    cannot produce is still rejected here, because `/api/control` is open to
+    anything on the machine.
+    """
+
+    name: str = Field(min_length=1, max_length=40)
+    source: str = Field(min_length=1, max_length=400)
+    channel_index: int | None = Field(default=None, ge=0, le=63)
+    is_direct: bool = False
+    record: bool = True
+
+
+class SetAudioAction(BaseModel):
+    type: Literal["set_audio"]
+    channels: list[ChannelSpec] = Field(min_length=1, max_length=8)
+
+
+class SetModelsAction(BaseModel):
+    """Empty strings mean "leave this one alone"; `stt_model` is cleared by null."""
+
+    type: Literal["set_models"]
+    tick_model: str = Field(default="", max_length=120)
+    final_model: str = Field(default="", max_length=120)
+    stt_engine: str = Field(default="", max_length=40)
+    stt_model: str | None = Field(default=None, max_length=200)
+
+
 ClientMessage = (
     MarkAction
     | PinAction
@@ -129,6 +159,8 @@ ClientMessage = (
     | SelectAction
     | SetLanguageAction
     | SetTicksAction
+    | SetAudioAction
+    | SetModelsAction
 )
 
 
@@ -142,6 +174,8 @@ def parse_client_message(data: dict[str, Any]) -> ClientMessage:
         "select": SelectAction,
         "set_language": SetLanguageAction,
         "set_ticks": SetTicksAction,
+        "set_audio": SetAudioAction,
+        "set_models": SetModelsAction,
     }
     model = table.get(str(kind))
     if model is None:

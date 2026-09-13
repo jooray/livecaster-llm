@@ -71,7 +71,10 @@ def _client(cfg: Config, mock: bool, session_dir: Path | None, fixtures: Path | 
 
 @app.command()
 def run(
-    outline: Annotated[Path, typer.Argument(help="Markdown outline (never modified)")],
+    outline: Annotated[
+        Path | None,
+        typer.Argument(help="Markdown outline (never modified). Omit it and drop one on the map."),
+    ] = None,
     mode: Annotated[str, typer.Option(help="live | remote")] = "live",
     resume: Annotated[Path | None, typer.Option(help="Resume an existing session directory")] = None,
     slug: Annotated[str | None, typer.Option(help="Session directory slug")] = None,
@@ -88,14 +91,14 @@ def run(
         cfg.llm.preflight = False
     if open_browser is not None:
         cfg.ui.open_browser = open_browser
-    if not outline.is_file():
+    if outline is not None and not outline.is_file():
         console.print(f"[red]outline not found:[/red] {outline}")
         raise typer.Exit(2)
     asyncio.run(_run_session(outline, cfg, resume=resume, slug=slug, mock=mock_llm))
 
 
 async def _run_session(
-    outline: Path,
+    outline: Path | None,
     cfg: Config,
     *,
     resume: Path | None,
@@ -114,7 +117,9 @@ async def _run_session(
         store = create_session(outline, cfg, mode=cfg.audio.mode, slug=slug)
         console.print(f"[green]session[/green] {store.dir}")
     add_session_log(store.dir)
-    if not store.outline.leaves():
+    if outline is None and not resume:
+        console.print("no outline yet — drop a Markdown file on the map, or use the cog")
+    elif not store.outline.leaves():
         console.print(
             "[yellow]this outline has nothing to cover[/yellow] — no bullets, questions or "
             "paragraphs were found, so the map will stay empty. Headings alone are not tracked."
@@ -140,8 +145,9 @@ async def _run_session(
         engine.reasoner.clock = engine.clock
         console.print(f"  {len(engine.transcript.segments)} segments, clock at {fmt_hms(last)}")
 
-    if cfg.llm.preflight and store.session.preflight is None:
+    if cfg.llm.preflight and store.session.preflight is None and store.outline.leaves():
         # Runs once the loop is up, so the map is on screen while the model thinks.
+        # With no outline there is nothing to ask about; an upload triggers it instead.
         engine.preflight_pending = True
         console.print("pre-flight runs in the background; the UI opens now")
 
@@ -563,8 +569,20 @@ async def _check(cfg: Config, run_stt: bool, sample: Path | None) -> bool:
     return ok
 
 
+def _device_label(index: int | None) -> str:
+    """Name the device an index landed on; `device:auto` is otherwise just a number."""
+    from livecaster.audio.devices import list_devices
+
+    if index is None:
+        return "system default"
+    for d in list_devices():
+        if d.index == index:
+            return f"[{d.index}] {d.name}"
+    return str(index)
+
+
 def _check_channels(cfg: Config) -> bool:
-    """Resolve every configured source now, so a renamed device fails here and not on air."""
+    """Resolve every configured source now, so a renamed device is flagged before air."""
     from livecaster.audio.devices import audiotee_binary, resolve_device
 
     ok = True
@@ -576,10 +594,14 @@ def _check_channels(cfg: Config) -> bool:
             try:
                 index = resolve_device(rest or None)
             except ValueError as exc:
-                console.print(f"[red]{label}: {exc}[/red] — run `livecaster devices`")
-                ok = False
+                # Not fatal any more: at Start this falls back to whatever is plugged
+                # in (FR-39). Still worth flagging — it will not be the mic you meant.
+                console.print(
+                    f"[yellow]{label}: {exc}[/yellow] — Start will fall back to an available "
+                    "device. Run `livecaster devices`, or use [cyan]device:auto[/cyan]."
+                )
                 continue
-            console.print(f"[green]{label}[/green] → {'system default' if index is None else index}")
+            console.print(f"[green]{label}[/green] → {_device_label(index)}")
         elif scheme == "audiotee":
             if platform.system() != "Darwin":
                 console.print(f"[red]{label}: AudioTee is macOS only[/red]")

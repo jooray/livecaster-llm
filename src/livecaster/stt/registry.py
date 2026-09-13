@@ -18,6 +18,15 @@ log = get_logger(__name__)
 
 MAC_ARM = platform.system() == "Darwin" and platform.machine() == "arm64"
 
+#: Engine key -> the package that has to be installed for it, for the Settings
+#: dialog. `auto` needs whatever the platform default turns out to be.
+ENGINE_PACKAGES: dict[str, str] = {
+    "parakeet-mlx": "parakeet_mlx",
+    "whisper-mlx": "mlx_whisper",
+    "onnx-asr": "onnx_asr",
+    "faster-whisper": "faster_whisper",
+}
+
 
 def _build(engine_key: str, model: str, cpu_threads: int = 0) -> STTEngine:
     if engine_key == "parakeet-mlx":
@@ -41,6 +50,35 @@ def _build(engine_key: str, model: str, cpu_threads: int = 0) -> STTEngine:
 
         return MockEngine()
     raise ValueError(f"unknown STT engine {engine_key!r}")
+
+
+def engine_catalogue() -> list[dict[str, Any]]:
+    """Every selectable engine, with whether its extra is actually installed.
+
+    Only looks for the module, so nothing is imported and no weights are touched:
+    the dialog can say "not installed" instead of the host finding out at Start.
+    """
+    import importlib.util
+
+    out: list[dict[str, Any]] = [
+        {
+            "key": "auto",
+            "installed": True,
+            "can_force_language": None,
+            "note": f"this machine: {default_engine_key()}",
+        }
+    ]
+    for key, package in ENGINE_PACKAGES.items():
+        installed = importlib.util.find_spec(package) is not None
+        out.append(
+            {
+                "key": key,
+                "installed": installed,
+                "can_force_language": key in {"whisper-mlx", "faster-whisper"},
+                "note": "" if installed else f"needs {package}",
+            }
+        )
+    return out
 
 
 def default_engine_key() -> str:

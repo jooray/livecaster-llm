@@ -149,6 +149,7 @@
   function buildOutline() {
     const root = $("#outline");
     root.innerHTML = "";
+    $("#outline-empty").classList.toggle("hidden", state.outline.length > 0);
     state.elements.clear();
     state.order = [];
     for (const node of state.outline) {
@@ -761,6 +762,7 @@
       send({ type: "control", action });
       e.preventDefault();
     } else if (key === "?") { $("#help").showModal(); e.preventDefault(); }
+    else if (key === ",") { showSettings(); e.preventDefault(); }
     else if (["1", "2", "3"].includes(key)) {
       const sug = (state.session && state.session.suggestions) || {};
       const item = (sug.next || []).find((x) => String(x.rank) === key);
@@ -853,6 +855,292 @@
     });
     $("#ticks").close();
   });
+
+  // ---------------------------------------------------------------- settings
+
+  // The Settings dialog is built from one /api/settings round-trip. Nothing is
+  // sent until Apply, so a half-edited channel never reaches the engine.
+  let settings = null;
+
+  const AUTO_SOURCE = "device:auto";
+  const CUSTOM = "__custom__";
+
+  async function showSettings() {
+    $("#settings").showModal();
+    await loadSettings();
+    // The provider's own list is a nicety; the dialog is already usable without it.
+    fetch("/api/models").then((r) => r.json()).then(fillModelList).catch(() => { /* offline */ });
+  }
+
+  async function loadSettings() {
+    try {
+      settings = await fetch("/api/settings").then((r) => r.json());
+    } catch {
+      toast("error", "Could not read the settings");
+      return;
+    }
+    renderChannels(settings.audio.channels);
+    renderModelFields();
+    renderOutlineNote();
+    fillModelList({ models: settings.llm.known_models });
+  }
+
+  function sourceOptions() {
+    const audio = (settings && settings.audio) || { devices: [], audiotee: [] };
+    const out = [[AUTO_SOURCE, "Auto — whichever mic is plugged in"]];
+    for (const d of audio.devices || []) {
+      const notes = [`${d.channels}ch`, `${d.samplerate} Hz`];
+      if (d.is_default) notes.push("system default");
+      if (d.headset_mode) notes.push("headset mode");
+      out.push([`device:${d.name}`, `${d.name} · ${notes.join(" · ")}`]);
+    }
+    for (const a of audio.audiotee || []) {
+      out.push([`audiotee:${a.name}`, `${a.name} — system audio (AudioTee)`]);
+    }
+    return out;
+  }
+
+  function renderChannels(channels) {
+    const box = $("#settings-channels");
+    box.innerHTML = "";
+    for (const ch of channels) box.append(channelRow(ch));
+    renderAudioNote();
+  }
+
+  function channelRow(ch) {
+    const row = el("div", "channel-row");
+
+    const name = el("input", "name");
+    name.value = ch.name || "Host";
+    name.maxLength = 40;
+    name.setAttribute("aria-label", "Channel name");
+
+    const select = el("select", "source");
+    const options = sourceOptions();
+    for (const [value, label] of options) {
+      const opt = el("option", "", label);
+      opt.value = value;
+      select.append(opt);
+    }
+    // A source the machine cannot offer right now — an unplugged headset, a
+    // `file:` replay — still has to be selectable, or opening the dialog would
+    // quietly rewrite it.
+    const known = options.some(([value]) => value === ch.source);
+    if (ch.source && !known) {
+      const opt = el("option", "", `${ch.source} — not connected`);
+      opt.value = ch.source;
+      select.insertBefore(opt, select.firstChild);
+    }
+    const customOpt = el("option", "", "Custom…");
+    customOpt.value = CUSTOM;
+    select.append(customOpt);
+    select.value = ch.source || AUTO_SOURCE;
+
+    const custom = el("input", "custom hidden");
+    custom.placeholder = "device:Name · audiotee:App · file:/path.wav";
+    custom.value = ch.source || "";
+    select.addEventListener("change", () => {
+      custom.classList.toggle("hidden", select.value !== CUSTOM);
+      if (select.value === CUSTOM) custom.focus();
+      renderAudioNote();
+    });
+
+    const direct = el("label", "direct");
+    const box = el("input");
+    box.type = "checkbox";
+    box.checked = !!ch.is_direct;
+    box.title = "This channel wins the cross-talk dedupe against the microphones";
+    direct.append(box, el("span", "", "direct"));
+
+    const drop = el("button", "drop-channel", "✕");
+    drop.type = "button";
+    drop.title = "Remove this channel";
+    drop.addEventListener("click", () => {
+      if ($("#settings-channels").children.length <= 1) {
+        toast("warn", "A session needs at least one channel");
+        return;
+      }
+      row.remove();
+      renderAudioNote();
+    });
+
+    row.append(name, select, custom, direct, drop);
+    return row;
+  }
+
+  function readChannels() {
+    return Array.from($("#settings-channels").children).map((row) => {
+      const select = row.querySelector("select.source");
+      const custom = row.querySelector("input.custom");
+      const source = select.value === CUSTOM ? custom.value.trim() : select.value;
+      return {
+        name: row.querySelector("input.name").value.trim(),
+        source: source || AUTO_SOURCE,
+        is_direct: row.querySelector(".direct input").checked,
+        record: true,
+      };
+    });
+  }
+
+  function renderAudioNote() {
+    const note = $("#settings-audio-note");
+    const audio = (settings && settings.audio) || {};
+    const chosen = readChannels().map((c) => c.source);
+    const lines = [];
+    if (audio.device_error) lines.push(`Devices could not be listed: ${audio.device_error}`);
+    const headsets = (audio.devices || [])
+      .filter((d) => d.headset_mode && chosen.includes(`device:${d.name}`))
+      .map((d) => d.name);
+    if (headsets.length) {
+      lines.push(
+        `${headsets.join(", ")} is in Bluetooth headset mode: opening the microphone drops the ` +
+        "whole link to 16 kHz mono, so what you hear sounds like a phone call. Fine for a test, " +
+        "wrong for an episode.");
+    }
+    if (!audio.audiotee_available && chosen.some((c) => c.startsWith("audiotee:"))) {
+      lines.push("The audiotee helper is not built — run ./helpers/audiotee/build.sh.");
+    }
+    if (!lines.length && (settings || {}).session_status === "running") {
+      lines.push("Applying reopens the microphones; the clock and the transcript carry on.");
+    }
+    note.textContent = lines.join(" ");
+    note.classList.toggle("warn", headsets.length > 0 || !!audio.device_error);
+  }
+
+  function renderModelFields() {
+    const llm = settings.llm, stt = settings.stt;
+    $("#settings-tick-model").value = llm.tick_model;
+    $("#settings-final-model").value = llm.final_model;
+    $("#settings-stt-model").value = stt.model || "";
+    const select = $("#settings-stt-engine");
+    select.innerHTML = "";
+    for (const engine of stt.engines) {
+      const bits = [engine.key];
+      if (engine.note) bits.push(engine.note);
+      else if (engine.can_force_language) bits.push("can lock the language");
+      const opt = el("option", "", bits.join(" — "));
+      opt.value = engine.key;
+      opt.disabled = !engine.installed;
+      select.append(opt);
+    }
+    select.value = stt.engine;
+    $("#settings-model-note").textContent =
+      `A bare name goes to ${llm.default_provider}; prefix another one ` +
+      `(${llm.providers.join(", ")}) to send it elsewhere.` +
+      (settings.session_status === "running" ? " A new speech engine loads at the next Start." : "");
+  }
+
+  function fillModelList(payload) {
+    const list = $("#settings-models");
+    const seen = new Set(Array.from(list.options).map((o) => o.value));
+    for (const id of payload.models || []) {
+      if (seen.has(id)) continue;
+      seen.add(id);
+      const opt = document.createElement("option");
+      opt.value = id;
+      list.append(opt);
+    }
+  }
+
+  function renderOutlineNote() {
+    const outline = settings.outline || {};
+    $("#settings-outline-note").textContent = outline.path
+      ? `${outline.items} item${outline.items === 1 ? "" : "s"} from ${outline.path}`
+      : "No outline loaded. The map stays empty and the model has nothing to track.";
+  }
+
+  function applySettings() {
+    const channels = readChannels();
+    if (channels.some((c) => !c.name)) { toast("error", "Every channel needs a name"); return; }
+    send({ type: "set_audio", channels });
+    send({
+      type: "set_models",
+      tick_model: $("#settings-tick-model").value,
+      final_model: $("#settings-final-model").value,
+      stt_engine: $("#settings-stt-engine").value,
+      stt_model: $("#settings-stt-model").value,
+    });
+    $("#settings").close();
+  }
+
+  $("#btn-settings").addEventListener("click", showSettings);
+  $("#meters").addEventListener("click", showSettings);
+  $("#settings-apply").addEventListener("click", applySettings);
+  $("#settings-rescan").addEventListener("click", loadSettings);
+  $("#settings-add-channel").addEventListener("click", () => {
+    const used = readChannels().map((c) => c.name);
+    const name = ["Guest", "Guest 2", "Guest 3"].find((n) => !used.includes(n)) || `Channel ${used.length + 1}`;
+    $("#settings-channels").append(channelRow({ name, source: AUTO_SOURCE, is_direct: used.length > 0 }));
+    renderAudioNote();
+  });
+
+  // ----------------------------------------------------------------- outline
+
+  async function uploadOutline(file) {
+    if (!file) return;
+    let text;
+    try {
+      text = await file.text();
+    } catch {
+      toast("error", "That file could not be read");
+      return;
+    }
+    let response;
+    try {
+      response = await fetch("/api/outline", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filename: file.name, text }),
+      });
+    } catch {
+      toast("error", "The upload did not reach the server");
+      return;
+    }
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      toast("error", data.error || `Upload failed (${response.status})`);
+      return;
+    }
+    if (settings) { await loadSettings(); }
+  }
+
+  const pickOutline = () => $("#outline-file").click();
+  $("#outline-file").addEventListener("change", (e) => {
+    uploadOutline(e.target.files[0]);
+    e.target.value = "";   // the same file again must still fire `change`
+  });
+  $("#btn-pick-outline").addEventListener("click", pickOutline);
+  $("#settings-pick-outline").addEventListener("click", pickOutline);
+
+  (function initOutlineDrop() {
+    const pane = $("#outline-pane");
+    const hint = $("#outline-drop");
+    let depth = 0;   // dragenter/dragleave fire per child, so count instead of toggling
+
+    const hasFile = (e) => Array.from(e.dataTransfer?.types || []).includes("Files");
+    pane.addEventListener("dragenter", (e) => {
+      if (!hasFile(e)) return;
+      e.preventDefault();
+      depth += 1;
+      hint.classList.remove("hidden");
+    });
+    pane.addEventListener("dragover", (e) => { if (hasFile(e)) e.preventDefault(); });
+    pane.addEventListener("dragleave", () => {
+      depth = Math.max(0, depth - 1);
+      if (!depth) hint.classList.add("hidden");
+    });
+    pane.addEventListener("drop", (e) => {
+      if (!hasFile(e)) return;
+      e.preventDefault();
+      depth = 0;
+      hint.classList.add("hidden");
+      uploadOutline(e.dataTransfer.files[0]);
+    });
+    // A file dropped anywhere else would otherwise navigate away from the UI.
+    for (const type of ["dragover", "drop"]) {
+      window.addEventListener(type, (e) => { if (hasFile(e) && !pane.contains(e.target)) e.preventDefault(); });
+    }
+  })();
 
   $("#btn-help").addEventListener("click", () => $("#help").showModal());
   $("#llm-status").addEventListener("click", showTicks);
