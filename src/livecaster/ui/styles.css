@@ -448,6 +448,48 @@ kbd {
   border-radius: 6px;
 }
 .result-body code { font-size: 13px; }
+
+/* Every ## is its own copy target: the move at the end of an episode is to take one
+   block — the social post, the mentions — into WordPress or a scheduler. The chip is
+   the control; the whole block is a target because the mouse is already there. */
+.md-sec {
+  margin: 18px -8px 0;
+  padding: 2px 8px 4px;
+  border-radius: 6px;
+  outline: 1px solid transparent;
+  outline-offset: -1px;
+  transition: background .12s ease-out, outline-color .5s ease-out;
+}
+.md-sec:first-child { margin-top: 0; }
+.md-sec .md-sec { margin-top: 14px; }
+.md-sec.copyable { cursor: pointer; }
+.md-sec.copyable:hover,
+.md-sec.copyable:focus-within { background: var(--warm-bg); }
+/* Hover and focus bubble, so a group inside Mentions would light its parent too. */
+.md-sec:has(.md-sec:hover),
+.md-sec:has(.md-sec:focus-within) { background: transparent; }
+/* Snaps on, fades out: confirmation where the click was, not only in the corner. */
+.md-sec.copied { outline-color: var(--ok); transition: none; }
+
+.md-sec-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+.md-sec-head > h2, .md-sec-head > h3 { margin: 0; flex: 1; min-width: 0; }
+
+.md-copy {
+  flex: none;
+  font-size: 13px;
+  line-height: 1;
+  padding: 3px 6px;
+  background: transparent;
+  border-color: transparent;
+  color: var(--fg-dim);
+  opacity: 0;
+  transition: opacity .12s ease-out;
+}
+.md-sec.copyable:hover > .md-sec-head > .md-copy,
+.md-sec.copyable:focus-within > .md-sec-head > .md-copy,
+.md-copy:focus-visible { opacity: 1; }
+.md-copy:hover, .md-copy:focus-visible { color: var(--accent); border-color: transparent; }
+.md-copy:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 /* `button.primary` already paints white on the accent; only spacing belongs here.
    An id + class selector overriding `color` made the label invisible. */
 #done-body .primary { margin-top: 12px; }

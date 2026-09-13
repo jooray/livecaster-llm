@@ -667,6 +667,119 @@
     });
   }
 
+  // Notes come back in the language of the podcast, so sections are found by heading
+  // level and never by their words. Everything inside a fence is text: a transcript
+  // quoting "## " must not open a section.
+  // Self-contained on purpose — tests/test_ui_sections.py runs this function alone.
+  function splitSections(markdown) {
+    const ATX = /^ {0,3}(#{2,3})\s+(.*?)\s*$/;
+    const FENCE = /^ {0,3}(`{3,}|~{3,})/;
+    const tidy = (s) => s.replace(/^(?:[ \t]*\n)+/, "").replace(/\s+$/, "");
+    const lines = String(markdown || "").split("\n");
+
+    const cuts = [];
+    let fence = null;
+    for (let i = 0; i < lines.length; i++) {
+      const f = lines[i].match(FENCE);
+      if (fence) {
+        if (f && f[1][0] === fence[0] && f[1].length >= fence.length) fence = null;
+        continue;
+      }
+      if (f) { fence = f[1]; continue; }
+      const m = lines[i].match(ATX);
+      if (m) cuts.push({ level: m[1].length, heading: m[2].replace(/\s+#+$/, ""), line: i });
+    }
+
+    const blocks = [];
+    const lead = tidy(lines.slice(0, cuts.length ? cuts[0].line : lines.length).join("\n"));
+    if (lead) blocks.push({ level: 0, heading: "", body: lead, text: "", children: [] });
+
+    let open = null;   // the ## a ### belongs to
+    for (let i = 0; i < cuts.length; i++) {
+      const cut = cuts[i];
+      let end = lines.length;
+      for (let j = i + 1; j < cuts.length; j++) {
+        if (cuts[j].level <= cut.level) { end = cuts[j].line; break; }
+      }
+      // A parent renders only what it holds itself; its children render themselves.
+      const next = cuts[i + 1];
+      const bodyEnd = next && next.line < end && next.level > cut.level ? next.line : end;
+      const node = {
+        level: cut.level,
+        heading: cut.heading,
+        body: tidy(lines.slice(cut.line + 1, bodyEnd).join("\n")),
+        // What the clipboard gets: the section without its heading, because nobody
+        // pastes "## Social post" into a social post.
+        text: tidy(lines.slice(cut.line + 1, end).join("\n")),
+        children: [],
+      };
+      if (cut.level === 2) { blocks.push(node); open = node; }
+      else if (open) open.children.push(node);
+      else blocks.push(node);
+    }
+    return blocks;
+  }
+
+  // The move at the end of an episode is to take one block somewhere else — the
+  // social post into a scheduler, the mentions into the episode page.
+  const sectionBlocks = new WeakMap();
+
+  function sectionNode(block) {
+    if (!block.level) {
+      const lead = el("div", "md-lead");
+      lead.innerHTML = window.marked.parse(block.body);
+      return lead;
+    }
+    const sec = el("section", block.text ? "md-sec copyable" : "md-sec");
+    const head = el("div", "md-sec-head");
+    const h = el(`h${block.level}`);
+    h.innerHTML = inlineMd(block.heading);
+    head.append(h);
+    if (block.text) {
+      const chip = el("button", "md-copy", "⧉");
+      chip.type = "button";
+      chip.title = "Copy this section";
+      chip.setAttribute("aria-label", `Copy “${block.heading}”`);
+      head.append(chip);
+      sectionBlocks.set(sec, block);
+    }
+    sec.append(head);
+    if (block.body) {
+      const bodyEl = el("div", "md-sec-body");
+      bodyEl.innerHTML = window.marked.parse(block.body);
+      sec.append(bodyEl);
+    }
+    for (const child of block.children) sec.append(sectionNode(child));
+    return sec;
+  }
+
+  function copySection(sec) {
+    const block = sectionBlocks.get(sec);
+    if (!block) return;
+    navigator.clipboard?.writeText(block.text).then(
+      () => {
+        toast("success", `Copied “${shorten(block.heading, 40)}”`);
+        sec.classList.remove("copied");
+        void sec.offsetWidth;   // restart the flash when the same block is copied twice
+        sec.classList.add("copied");
+        setTimeout(() => sec.classList.remove("copied"), 600);
+      },
+      () => toast("error", "The browser refused clipboard access"),
+    );
+  }
+
+  $("#result-body").addEventListener("click", (e) => {
+    const target = e.target;
+    if (!(target instanceof Element)) return;
+    if (target.closest("a")) return;   // a link in the notes or the outline is a link first
+    const sec = target.closest(".md-sec.copyable");
+    if (!sec) return;
+    // A click that ends a drag over the text meant to select it, not to copy the block.
+    const sel = window.getSelection();
+    if (sel && !sel.isCollapsed && sel.toString().trim()) return;
+    copySection(sec);
+  });
+
   async function showResult(name) {
     const body = $("#result-body");
     for (const b of document.querySelectorAll("#result-files .chip[data-name]")) {
@@ -677,14 +790,11 @@
     try {
       const text = await (await fetch(`/api/final/${encodeURIComponent(name)}`)).text();
       state.resultText = text;
-      if (name.endsWith("srt") || name === "transcript_srt") {
-        body.innerHTML = "";
+      body.innerHTML = "";
+      if (name.endsWith("srt") || name === "transcript_srt" || !window.marked) {
         body.append(el("pre", "", text));
-      } else if (window.marked) {
-        body.innerHTML = window.marked.parse(text);
       } else {
-        body.innerHTML = "";
-        body.append(el("pre", "", text));
+        for (const block of splitSections(text)) body.append(sectionNode(block));
       }
     } catch (err) {
       body.textContent = `could not read ${name}: ${err}`;
@@ -881,6 +991,7 @@
     }
     renderChannels(settings.audio.channels);
     renderModelFields();
+    renderTargetField();
     renderOutlineNote();
     fillModelList({ models: settings.llm.known_models });
   }
@@ -1042,6 +1153,12 @@
     }
   }
 
+  function renderTargetField() {
+    // The session owns it, not /api/settings: it changes mid-session like the clock.
+    const target = (state.session || {}).target_minutes;
+    $("#settings-target").value = target == null ? "" : String(target);
+  }
+
   function renderOutlineNote() {
     const outline = settings.outline || {};
     $("#settings-outline-note").textContent = outline.path
@@ -1060,6 +1177,10 @@
       stt_engine: $("#settings-stt-engine").value,
       stt_model: $("#settings-stt-model").value,
     });
+    const raw = $("#settings-target").value.trim();
+    const target = raw === "" ? null : Number(raw);
+    if (target !== null && !(target > 0)) { toast("error", "A target length is a number of minutes"); return; }
+    send({ type: "set_target", target_minutes: target });
     $("#settings").close();
   }
 
