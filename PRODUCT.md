@@ -67,7 +67,12 @@ sessions, not estimated.
   replay from a file for development.
 - **Two screens, one product**: the app UI is a local page served at `127.0.0.1:8766` and opened on
   the host's laptop or a tablet on the same network; the project site at `../livecaster-site` is a
-  single static page where a host decides whether to install it at all.
+  single static page where a host decides whether to install it at all. They share one visual world —
+  the score: Libre Franklin for structure, Spectral italic for the cue voice, the conductor's pencil
+  for what matters now — and differ in composition, because the app is glanced at from two metres
+  mid-interview and the site is read at reading distance by someone deciding. `DESIGN.md` records the
+  app's system; the site is a Persuade surface laid out as a critical edition, every claim carrying
+  its measurement or its caveat beside it.
 - **Session directory as the record.** Everything lands in `sessions/<date>_<slug>/` as it happens:
   transcript, events, WAV backups, LLM traffic, state. A crash costs the utterance in flight.
 - **The sync mark.** The real recorder (Zencastr, the host's usual rig) starts at a different moment;
@@ -104,9 +109,6 @@ SRT, and the raw analysis JSON; `check`, `devices`, `replay`, `wrapup`, `export`
 
 **Undecided / open**:
 
-- Whether the site should keep borrowing the app's palette and chrome. It does today (the site's CSS
-  is lifted from `src/livecaster/ui/styles.css`), and that link was deliberately **not** confirmed as
-  binding — a future site direction may keep it or leave it.
 - No licence file exists in the repository yet.
 - An English demo recording is planned; only the Slovak one exists.
 
