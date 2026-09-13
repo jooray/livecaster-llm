@@ -92,6 +92,7 @@ def test_summary_has_no_secrets():
         "tick_model",
         "final_model",
         "tick_interval_s",
+        "target_minutes",
     }
     assert "key" not in str(summary).lower()
 

@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Livecaster — Rehearsal Marks</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@400;500;600;700&family=Spectral:ital,wght@0,400;1,400;1,500&display=swap" rel="stylesheet">
+<style>
+/* ------------------------------------------------------------------
+   REHEARSAL MARKS — the plan as a score you can restart anywhere.
+
+   An orchestra can begin again at any bar because the score carries
+   rehearsal letters in the margin. That is the same problem this app
+   has: the guest jumped, and the host needs to re-enter somewhere
+   specific, instantly. So the margin letters are the jump keys.
+
+   Covered lines take a single engraver's cut. The reachable topic is
+   marked in conductor's pencil red and carries a cue note, which is the
+   small-weight line a score prints to show a player how to come back in.
+   A line the host marked takes a marcato accent.
+
+   Inverted for screen: bone on near-black, because the room is dim and
+   the reader is two metres away, not holding paper.
+   ------------------------------------------------------------------ */
+
+:root {
+  --ground: #0e0f11;
+  --bone:   #f2efe6;
+  --staff:  #4c5058;
+  --quiet:  #8d9199;
+  --rest:   #5c616a;
+  --pencil: #e4573a;
+  --mark:   #79a8e8;
+
+  --t-ui:   "Libre Franklin", -apple-system, BlinkMacSystemFont, sans-serif;
+  --t-cue:  "Spectral", Georgia, serif;
+
+  color-scheme: dark;
+  accent-color: var(--pencil);
+}
+
+* { box-sizing: border-box; }
+
+html, body { margin: 0; min-height: 100%; background: var(--ground); }
+body {
+  font-family: var(--t-ui);
+  font-size: 18px; line-height: 1.45;
+  color: var(--bone);
+  -webkit-font-smoothing: antialiased;
+  padding: 30px clamp(18px, 3.5vw, 54px) 44px;
+}
+
+::selection { background: rgba(228,87,58,.3); color: #fff; }
+:focus-visible { outline: 2px solid var(--pencil); outline-offset: 3px; }
+* { scrollbar-width: thin; scrollbar-color: #22252a transparent; }
+*::-webkit-scrollbar { width: 10px; }
+*::-webkit-scrollbar-thumb { background: #22252a; border-radius: 99px; }
+
+.num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
+
+/* ---------------------------------------------------------- head */
+
+.head {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 34px;
+  padding-bottom: 16px; margin-bottom: 34px;
+  border-bottom: 1px solid var(--staff);
+}
+.head .clock { font-size: 34px; font-weight: 600; letter-spacing: -.02em; }
+.head .of { color: var(--quiet); font-size: 20px; }
+.head .budget { color: var(--quiet); display: flex; flex-wrap: wrap; gap: 4px 26px; }
+.head .budget b { color: var(--bone); font-weight: 600; }
+.head .budget .marked { color: var(--mark); font-weight: 600; }
+.listening { display: inline-flex; align-items: flex-end; gap: 3px; height: 18px; }
+.listening i { display: block; width: 3px; background: var(--quiet); border-radius: 2px; animation: pulse 1.05s ease-in-out infinite; }
+.listening i:nth-child(1) { height: 7px; }
+.listening i:nth-child(2) { height: 14px; animation-delay: .16s; }
+.listening i:nth-child(3) { height: 10px; animation-delay: .33s; }
+.listening i:nth-child(4) { height: 16px; animation-delay: .1s; }
+@keyframes pulse { 0%,100% { transform: scaleY(.32); } 50% { transform: scaleY(1); } }
+@media (prefers-reduced-motion: reduce) { .listening i { animation: none; } }
+
+/* ---------------------------------------------------------- systems */
+
+.score { max-width: 1140px; }
+
+/* One system: a rehearsal mark in the margin, a bracket, the staves. */
+.system {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  gap: 0 22px;
+  margin-bottom: 30px;
+}
+.system > .margin { position: relative; }
+
+.rmark {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 40px; height: 40px; padding: 0 8px;
+  border: 2px solid var(--bone);
+  font-size: 24px; font-weight: 700; letter-spacing: .02em;
+  color: var(--bone);
+}
+.system.is-live .rmark { border-color: var(--pencil); color: var(--pencil); }
+.system.is-rest .rmark { border-color: var(--rest); color: var(--rest); border-width: 1px; min-width: 34px; height: 34px; font-size: 20px; font-weight: 500; }
+
+/* The bracket that gathers a system's staves, as in a score. */
+.system > .margin::after {
+  content: "";
+  position: absolute; left: 50%; top: 46px; bottom: 4px; width: 1px;
+  background: var(--staff);
+}
+.system.is-rest > .margin::after { display: none; }
+
+.sysname {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px;
+  margin-bottom: 10px;
+}
+.sysname h2 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -.01em; }
+.sysname .frac { color: var(--quiet); }
+
+/* A system entirely behind you rests: one line, the way a score writes tacet. */
+.system.is-rest .sysname h2 { font-size: 19px; font-weight: 400; color: var(--rest); }
+.system.is-rest .sysname .frac { color: var(--rest); }
+
+.stave { display: flex; gap: 20px; align-items: baseline; padding: 5px 0; }
+.stave .t { color: var(--quiet); min-width: 5.5ch; }
+.stave .t.blank { color: transparent; }
+
+.stave.cut .body { color: var(--quiet); text-decoration: line-through; text-decoration-thickness: 1px; text-decoration-color: var(--staff); }
+.stave.warm .body { border-bottom: 1px dotted var(--staff); padding-bottom: 2px; }
+
+/* Marcato: the host marked this one and it has not been played. */
+.stave.accent .body { color: var(--mark); }
+.stave.accent .body::before {
+  content: "\2227";                 /* the marcato accent, drawn as type */
+  color: var(--mark); font-weight: 700; margin-right: 12px; display: inline-block;
+}
+
+/* The passage to play now, in conductor's pencil. */
+.system.is-live .play { margin: 8px 0 4px; }
+.play .line {
+  margin: 0 0 10px; max-width: 22ch;
+  font-size: clamp(32px, 3.6vw, 44px); font-weight: 700; line-height: 1.04;
+  letter-spacing: -.02em; color: var(--pencil); text-wrap: balance;
+}
+.play .cue {
+  font-family: var(--t-cue); font-style: italic;
+  font-size: 19px; line-height: 1.5; color: var(--bone);
+  max-width: 52ch; margin: 0 0 6px;
+  padding-left: 16px; border-left: 1px solid var(--pencil);
+}
+.play .cue .said { color: var(--quiet); }
+
+.keys {
+  margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--staff);
+  color: var(--quiet); display: flex; flex-wrap: wrap; gap: 6px 28px;
+}
+.keys b { color: var(--bone); font-weight: 600; }
+.keys .letters { color: var(--bone); font-weight: 600; }
+
+@media (max-width: 760px) {
+  body { padding: 22px 16px 30px; }
+  .system { grid-template-columns: 44px 1fr; gap: 0 14px; }
+  .system > .margin::after { display: none; }
+  .stave .t { min-width: 0; }
+}
+</style>
+</head>
+<body>
+
+<div class="head">
+  <span class="clock num">00:41:07</span>
+  <span class="of num">of 60:00</span>
+  <span class="listening" aria-label="Hearing you"><i></i><i></i><i></i><i></i></span>
+  <span class="budget num">
+    <span><b>19</b> min left</span>
+    <span><b>11</b> unasked</span>
+    <span class="marked">2 you marked</span>
+  </span>
+</div>
+
+<div class="score">
+
+  <section class="system is-rest">
+    <div class="margin"><span class="rmark">A</span></div>
+    <div>
+      <div class="sysname"><h2>The problem</h2><span class="frac num">all 4 covered · 00:03–00:11</span></div>
+    </div>
+  </section>
+
+  <section class="system">
+    <div class="margin"><span class="rmark">B</span></div>
+    <div>
+      <div class="sysname"><h2>What it does</h2><span class="frac num">6/7</span></div>
+      <div class="stave cut"><span class="t num">18:55</span><span class="body">Open the map. The outline is the whole interface</span></div>
+      <div class="stave cut"><span class="t num">24:02</span><span class="body">Mentions: books, people and links pulled out as they are said</span></div>
+      <div class="stave"><span class="t blank num">—</span><span class="body">Press Finish and open the Result tab</span></div>
+    </div>
+  </section>
+
+  <section class="system is-rest">
+    <div class="margin"><span class="rmark">C</span></div>
+    <div>
+      <div class="sysname"><h2>What comes out at the end</h2><span class="frac num">all 3 covered · 00:28–00:33</span></div>
+    </div>
+  </section>
+
+  <section class="system">
+    <div class="margin"><span class="rmark">D</span></div>
+    <div>
+      <div class="sysname"><h2>Technology, and why each piece</h2><span class="frac num">2/4</span></div>
+      <div class="stave cut"><span class="t num">35:10</span><span class="body">Everything that touches audio is local</span></div>
+      <div class="stave warm"><span class="t blank num">—</span><span class="body">Only the reasoning is remote</span></div>
+      <div class="stave accent"><span class="t blank num">—</span><span class="body">The part I would defend hardest</span></div>
+    </div>
+  </section>
+
+  <section class="system is-live">
+    <div class="margin"><span class="rmark">E</span></div>
+    <div>
+      <div class="sysname"><h2>What is not solved</h2><span class="frac num">0/4</span></div>
+      <div class="play">
+        <p class="line">Slovak is only as good as the microphone</p>
+        <p class="cue">The guest just said they record on a Bluetooth headset. This asks it directly.<br>
+          <span class="said">“You mentioned you record on a headset — that is actually the thing that breaks this…”</span></p>
+      </div>
+      <div class="stave"><span class="t blank num">—</span><span class="body">Parakeet cannot be told what language it is hearing</span></div>
+      <div class="stave accent"><span class="t blank num">—</span><span class="body">Closing question: what would I want it to do that it does not do yet?</span></div>
+    </div>
+  </section>
+
+</div>
+
+<div class="keys">
+  <span>Jump by letter <span class="letters">A B C D E</span></span>
+  <span><b>c</b> covered</span>
+  <span><b>x</b> skip</span>
+  <span><b>t</b> transcript</span>
+  <span><b>q</b> questions</span>
+  <span><b>l</b> links promised</span>
+</div>
+
+</body>
+</html>

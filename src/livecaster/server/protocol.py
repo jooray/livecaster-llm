@@ -141,6 +141,14 @@ class SetAudioAction(BaseModel):
     channels: list[ChannelSpec] = Field(min_length=1, max_length=8)
 
 
+class SetTargetAction(BaseModel):
+    """Set or clear the episode target. Null clears it; the upper bound is a day,
+    which is past any episode and short of a number that breaks the arithmetic."""
+
+    type: Literal["set_target"]
+    target_minutes: float | None = Field(default=None, gt=0, le=24 * 60)
+
+
 class SetModelsAction(BaseModel):
     """Empty strings mean "leave this one alone"; `stt_model` is cleared by null."""
 
@@ -161,6 +169,7 @@ ClientMessage = (
     | SetTicksAction
     | SetAudioAction
     | SetModelsAction
+    | SetTargetAction
 )
 
 
@@ -176,6 +185,7 @@ def parse_client_message(data: dict[str, Any]) -> ClientMessage:
         "set_ticks": SetTicksAction,
         "set_audio": SetAudioAction,
         "set_models": SetModelsAction,
+        "set_target": SetTargetAction,
     }
     model = table.get(str(kind))
     if model is None:

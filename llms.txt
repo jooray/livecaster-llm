@@ -10,6 +10,10 @@ This file is for agents setting Livecaster up or operating it. Humans want `READ
 Hard constraints, in case they decide something for you:
 
 - The outline file is opened for reading and never for writing. The app annotates a copy.
+- A bold line in the outline is a must-ask (`**Closing question:** ...`, or a wholly bold line). A
+  bold run titling a bullet before an em-dash is not. Uncovered must-asks are named in the show notes.
+- The server is loopback-only unless `--lan` or `ui.host` says otherwise. A non-loopback bind mints a
+  per-session key that off-machine clients must present; do not disable it to make something work.
 - Audio never leaves the machine. Only outline text and transcript text reach the LLM.
 - `outlines/`, `sessions/`, `.env` and `livecaster.toml` are git-ignored. They hold episode plans,
   recordings and API keys. Do not commit them, and do not paste their contents into a chat.
@@ -48,6 +52,7 @@ will not surface again until the host is already recording.
 uv run livecaster run outlines/episode.md               # live: one room, one or more microphones
 uv run livecaster run                                   # no outline yet: drop one on the map
 uv run livecaster run outlines/episode.md --mode remote # remote guest through the browser
+uv run livecaster run outlines/episode.md --lan         # also serve the LAN; prints a keyed URL
 uv run livecaster replay tests/fixtures/transcript_sk.jsonl --outline demo/demo.md --speed 0
 uv run livecaster replay --wav sample.wav --outline demo/demo.md --mock-llm
 uv run livecaster wrapup sessions/<dir>                 # re-run the show notes on a finished session

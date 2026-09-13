@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Livecaster — Struck Tube</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@400;500;600;700&family=Archivo:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ------------------------------------------------------------------
+   STRUCK TUBE — a cathode numeral stack for the live map.
+
+   Every topic in the plan is present at once as an unlit ghost behind a
+   fine bronze anode gauze. The one that just became reachable is struck
+   forward, crisp and haloed. Covered topics keep a decayed afterglow.
+   Skipped stay dark.
+
+   Two hues only, ink-blue black and cathode orange, plus bone for prose.
+   No boxes, no rules, no dividers anywhere on the plane: grouping is
+   gauze density and depth. Prose clears the mesh entirely so the reason
+   and the segue stay readable.
+   ------------------------------------------------------------------ */
+
+:root {
+  --ground:  #080b12;
+  --gauze:   #6b5a34;
+  --glow:    #ff8a1e;
+  --glow-hi: #ffb463;
+  --bone:    #e8e4da;
+  --ghost:   #7d8698;
+  --ghost-d: #6e7787;
+  --ember:   #c47f2c;   /* covered: the decayed afterglow */
+
+  --t-disp: "Saira Condensed", "Helvetica Neue", sans-serif;
+  --t-body: "Archivo", -apple-system, BlinkMacSystemFont, sans-serif;
+
+  color-scheme: dark;
+  accent-color: var(--glow);
+}
+
+* { box-sizing: border-box; }
+
+html, body { margin: 0; min-height: 100%; background: var(--ground); }
+
+body {
+  font-family: var(--t-body);
+  font-size: 18px;
+  line-height: 1.45;
+  color: var(--bone);
+  -webkit-font-smoothing: antialiased;
+  padding: 34px clamp(20px, 4vw, 60px) 40px;
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* The gauze runs past every edge, unframed, and the tube light falls
+   warm onto the middle of the plane. */
+body::before {
+  content: "";
+  position: fixed; inset: -10px;
+  pointer-events: none; z-index: 0;
+  background:
+    repeating-linear-gradient(52deg,  rgba(107,90,52,.16) 0 1px, transparent 1px 5px),
+    repeating-linear-gradient(-52deg, rgba(107,90,52,.13) 0 1px, transparent 1px 5px);
+  mask-image: radial-gradient(115% 95% at 50% 46%, #000 30%, rgba(0,0,0,.35) 100%);
+}
+body::after {
+  content: "";
+  position: fixed; inset: 0;
+  pointer-events: none; z-index: 0;
+  background: radial-gradient(62% 52% at 46% 44%, rgba(255,138,30,.085), transparent 72%);
+}
+main { position: relative; z-index: 1; }
+
+::selection { background: rgba(255,138,30,.3); color: #fff; }
+:focus-visible { outline: 2px solid var(--glow); outline-offset: 4px; }
+* { scrollbar-width: thin; scrollbar-color: #241f16 transparent; }
+*::-webkit-scrollbar { width: 10px; }
+*::-webkit-scrollbar-thumb { background: #241f16; border-radius: 99px; }
+
+.num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
+
+/* ---------------------------------------------------------- top edge */
+
+.edge {
+  display: flex; flex-wrap: wrap; align-items: baseline;
+  gap: 6px clamp(20px, 3vw, 46px);
+  margin-bottom: 46px;
+}
+.strike-num {
+  font-family: var(--t-disp);
+  font-size: clamp(40px, 5vw, 62px); font-weight: 600; line-height: .92;
+  letter-spacing: .01em;
+  color: var(--glow);
+  text-shadow: 0 0 18px rgba(255,138,30,.5), 0 0 46px rgba(255,138,30,.22);
+}
+.strike-sub {
+  font-family: var(--t-disp);
+  font-size: 24px; font-weight: 400; letter-spacing: .02em;
+  color: var(--ghost);
+}
+.budget {
+  font-family: var(--t-disp);
+  font-size: 24px; letter-spacing: .02em; color: var(--ghost);
+  display: flex; flex-wrap: wrap; gap: 4px 22px;
+}
+.budget b { color: var(--bone); font-weight: 600; }
+.budget .marked { color: var(--glow-hi); font-weight: 600; }
+
+.listening { display: inline-flex; align-items: flex-end; gap: 3px; height: 20px; }
+.listening i {
+  display: block; width: 3px; background: var(--glow); border-radius: 2px;
+  box-shadow: 0 0 8px rgba(255,138,30,.6);
+  animation: pulse 1.05s ease-in-out infinite;
+}
+.listening i:nth-child(1) { height: 8px;  animation-delay: 0s; }
+.listening i:nth-child(2) { height: 16px; animation-delay: .16s; }
+.listening i:nth-child(3) { height: 11px; animation-delay: .33s; }
+.listening i:nth-child(4) { height: 18px; animation-delay: .1s; }
+@keyframes pulse { 0%,100% { transform: scaleY(.3); } 50% { transform: scaleY(1); } }
+@media (prefers-reduced-motion: reduce) { .listening i { animation: none; } }
+
+/* ---------------------------------------------------------- the plane */
+
+.plane { max-width: 1180px; }
+
+/* Sections hang further back in the stack than their items. */
+.sec {
+  font-family: var(--t-disp);
+  font-size: clamp(26px, 2.6vw, 34px); font-weight: 500;
+  letter-spacing: .03em;
+  color: var(--ghost-d);
+  margin: 40px 0 12px;
+}
+.sec:first-child { margin-top: 0; }
+.sec .frac { font-size: .62em; color: var(--ghost-d); margin-left: 14px; letter-spacing: .06em; }
+
+/* A section entirely behind you sinks to the back of the stack. */
+.sec.folded {
+  font-size: clamp(20px, 1.9vw, 24px);
+  color: #616a7a;
+  margin: 34px 0 0;
+}
+.sec.folded .frac { color: #545c6b; }
+
+.row { display: flex; gap: clamp(12px, 1.6vw, 26px); align-items: baseline; padding: 5px 0; }
+.row .t {
+  font-family: var(--t-disp); font-size: 20px; letter-spacing: .03em;
+  color: var(--ember); min-width: 5.5ch; opacity: .8;
+}
+.row .t.blank { color: transparent; }
+
+/* Covered: the glow has decayed but has not gone. */
+.row.covered .txt { color: var(--ember); }
+.row.covered .txt s { text-decoration: line-through; text-decoration-thickness: 1px; text-decoration-color: rgba(154,90,28,.55); }
+
+/* Untouched: an unlit ghost behind the gauze. */
+.row.ghost .txt { color: var(--ghost); }
+
+/* Touched: the filament has warmed but not struck. */
+.row.warm .txt { color: #b9b3a6; }
+
+/* Marked by the host and still unasked: the ghost is lit from behind. */
+.row.marked .txt { color: var(--glow-hi); }
+.row.marked .txt::before {
+  content: ""; display: inline-block; vertical-align: .34em;
+  width: 7px; height: 7px; margin-right: 12px; border-radius: 50%;
+  background: var(--glow-hi); box-shadow: 0 0 10px rgba(255,180,99,.85);
+}
+
+/* Struck: forward, crisp, haloed, the only lit thing on the plane. */
+.struck { display: flex; gap: clamp(14px, 2vw, 28px); margin: 26px 0 30px; align-items: flex-start; }
+.struck .key {
+  font-family: var(--t-disp);
+  font-size: clamp(64px, 8vw, 104px); font-weight: 700; line-height: .8;
+  color: var(--glow);
+  text-shadow: 0 0 20px rgba(255,138,30,.65), 0 0 60px rgba(255,138,30,.3);
+  animation: strike .34s cubic-bezier(.2,.9,.2,1) 1;
+}
+@keyframes strike { from { opacity: 0; filter: blur(6px); } to { opacity: 1; filter: none; } }
+@media (prefers-reduced-motion: reduce) { .struck .key { animation: none; } }
+
+.struck .headline {
+  font-family: var(--t-disp);
+  font-size: clamp(38px, 4.6vw, 58px); font-weight: 600; line-height: 1.02;
+  letter-spacing: .005em; margin: 0 0 14px; max-width: 17ch;
+  color: var(--glow);
+  text-shadow: 0 0 22px rgba(255,138,30,.45), 0 0 58px rgba(255,138,30,.18);
+  text-wrap: balance;
+}
+
+/* Prose clears the mesh: a solid patch of ground, so reading is reading. */
+.prose {
+  background: radial-gradient(120% 150% at 20% 50%, var(--ground) 55%, rgba(8,11,18,0) 100%);
+  padding: 6px 40px 6px 0;
+  max-width: 54ch;
+}
+.prose p { margin: 0 0 8px; color: var(--bone); }
+.prose .segue { color: #a09a8d; font-style: italic; }
+
+/* ---------------------------------------------------------- bottom edge */
+
+.keys {
+  font-family: var(--t-disp); font-size: 20px; letter-spacing: .04em;
+  color: var(--ghost-d); margin-top: 52px;
+  display: flex; flex-wrap: wrap; gap: 6px 30px;
+}
+.keys b { color: var(--glow); font-weight: 600; }
+
+@media (max-width: 760px) {
+  body { padding: 24px 18px 32px; }
+  .row .t { min-width: 0; }
+}
+</style>
+</head>
+<body>
+<main>
+
+  <div class="edge">
+    <span class="strike-num num">00:41:07</span>
+    <span class="strike-sub num">of 60:00</span>
+    <span class="listening" aria-label="Hearing you"><i></i><i></i><i></i><i></i></span>
+    <span class="budget num">
+      <span><b>19</b> min left</span>
+      <span><b>11</b> unasked</span>
+      <span class="marked">2 you marked</span>
+    </span>
+  </div>
+
+  <div class="plane">
+
+    <div class="sec folded">1. The problem <span class="frac num">all 4 covered · 00:03–00:11</span></div>
+
+    <div class="sec">2. What it does <span class="frac num">6/7</span></div>
+    <div class="row covered"><span class="t num">18:55</span><span class="txt"><s>Open the map. The outline is the whole interface</s></span></div>
+    <div class="row covered"><span class="t num">24:02</span><span class="txt"><s>Mentions: books, people and links pulled out as they are said</s></span></div>
+    <div class="row ghost"><span class="t blank num">—</span><span class="txt">Press Finish and open the Result tab</span></div>
+
+    <div class="sec folded">3. What comes out at the end <span class="frac num">all 3 covered · 00:28–00:33</span></div>
+
+    <div class="sec">4. Technology, and why each piece <span class="frac num">2/4</span></div>
+    <div class="row covered"><span class="t num">35:10</span><span class="txt"><s>Everything that touches audio is local</s></span></div>
+    <div class="row warm"><span class="t blank num">—</span><span class="txt">Only the reasoning is remote</span></div>
+    <div class="row marked"><span class="t blank num">—</span><span class="txt">The part I would defend hardest</span></div>
+
+    <div class="sec">6. What is not solved <span class="frac num">0/4</span></div>
+
+    <div class="struck">
+      <span class="key num">1</span>
+      <div>
+        <h2 class="headline">Slovak is only as good as the microphone</h2>
+        <div class="prose">
+          <p>The guest just said they record on a Bluetooth headset. This asks it directly.</p>
+          <p class="segue">“You mentioned you record on a headset — that is actually the thing that breaks this…”</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="row ghost"><span class="t blank num">—</span><span class="txt">Parakeet cannot be told what language it is hearing</span></div>
+    <div class="row marked"><span class="t blank num">—</span><span class="txt">Closing question: what would I want it to do that it does not do yet?</span></div>
+
+  </div>
+
+  <div class="keys">
+    <span><b>1</b> jump to it</span>
+    <span><b>c</b> covered</span>
+    <span><b>x</b> skip</span>
+    <span><b>t</b> transcript</span>
+    <span><b>q</b> questions</span>
+    <span><b>l</b> links promised</span>
+  </div>
+
+</main>
+</body>
+</html>

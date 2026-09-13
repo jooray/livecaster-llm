@@ -116,6 +116,10 @@ class UIConfig(BaseModel):
 
 class SessionConfig(BaseModel):
     dir: str = "sessions"
+    #: How long the episode is meant to run, in minutes. Unset means no budget: the
+    #: UI shows a clock and nothing else, which is what every session did before
+    #: FR-41. Set it and the map can say what is still unasked with the time left.
+    target_minutes: float | None = Field(default=None, gt=0, le=24 * 60)
 
 
 class Config(BaseModel):
@@ -138,6 +142,7 @@ class Config(BaseModel):
             "tick_model": self.llm.tick_model,
             "final_model": self.llm.final_model,
             "tick_interval_s": self.llm.tick_interval_s,
+            "target_minutes": self.session.target_minutes,
         }
 
 

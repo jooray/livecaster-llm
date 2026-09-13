@@ -182,6 +182,9 @@ class Session(BaseModel):
     usage: Usage = Field(default_factory=Usage)
     status: Literal["idle", "running", "paused", "finishing", "finished"] = "idle"
     duration_s: float = 0.0
+    #: How long this episode is meant to run, in minutes (FR-41). None means no
+    #: budget was set, and the UI must not invent one.
+    target_minutes: float | None = None
     final_paths: dict[str, str] = Field(default_factory=dict)
 
     @property

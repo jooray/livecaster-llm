@@ -1,4 +1,12 @@
-/* Livecaster UI. Plain ES2020, no build step. */
+/* Livecaster UI. Plain ES2020, no build step.
+
+   The outline is drawn as a score: each top-level section is a system with a
+   lettered rehearsal mark in the margin, and that letter is the jump key.
+   Covered lines take the engraver's cut, the reachable one is the passage to
+   play now, and a line the host bolded in the outline carries a marcato.
+
+   Nothing on this screen is meant to be read while talking. Transcript,
+   questions, mentions and new topics are keys that overlay and leave. */
 (() => {
   "use strict";
 
@@ -7,18 +15,25 @@
     outline: [],
     nodesById: new Map(),      // node id -> outline node
     states: {},                // node id -> NodeState
-    elements: new Map(),       // node id -> {root, row, text, badge, reason, segue, frac}
-    order: [],                 // coverable node ids in document order (for j/k)
+    elements: new Map(),       // node id -> {root, body, t, mk, prep, rank}
+    systems: [],               // {letter, headingId, el, nodeIds}
+    letters: new Map(),        // letter -> system
+    order: [],                 // coverable node ids in document order (j/k)
     selected: null,
     segments: [],
     buildId: window.BUILD_ID,
     status: {},
     connected: false,
     resultText: "",
-    // Live, the host reads with one eye. Everything the model says beyond a label
-    // is hidden until asked for; `d` flips the whole surface to the full text.
+    overlay: null,             // "transcript" | "questions" | "mentions" | "new"
+    llmFails: 0,               // consecutive failed ticks
+    seenStatus: new Map(),     // node id -> last status, to catch the moment one is cut
+    lastTickAt: null,          // clock of the last tick that landed
+    wrapOpen: false,
+    openRest: new Set(),       // rested systems the host has opened back up
+    // Live, the host reads with one eye. Everything the model says beyond the
+    // one passage is hidden until asked for; `d` flips the whole score to full.
     dense: localStorage.getItem("lc.dense") === "1",
-    expanded: null,
   };
 
   const $ = (sel) => document.querySelector(sel);
@@ -47,6 +62,31 @@
     return d.innerHTML;
   }
 
+  // A, B … Z, then AA, AB. An outline past 26 sections has other problems.
+  function letterFor(i) {
+    let out = "";
+    i += 1;
+    while (i > 0) {
+      const r = (i - 1) % 26;
+      out = String.fromCharCode(65 + r) + out;
+      i = Math.floor((i - 1) / 26);
+    }
+    return out;
+  }
+
+  const isOpen = (st) => !st || (st.status !== "covered" && st.status !== "skipped");
+
+  // Drawn, not typed. A marcato set as U+2227 in a text face is a caret pointing
+  // at nothing to anyone who does not read music, and invisible at two metres.
+  const MARCATO =
+    '<svg viewBox="0 0 16 12" width="16" height="12" aria-hidden="true" focusable="false">' +
+    '<path d="M1.5 10.5 8 2l6.5 8.5" fill="none" stroke="currentColor" ' +
+    'stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const PINNED =
+    '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false">' +
+    '<path d="M3 8.6 6.4 12 13 3.8" fill="none" stroke="currentColor" ' +
+    'stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
   // ---------------------------------------------------------------- websocket
 
   let ws = null;
@@ -54,7 +94,7 @@
 
   function connect() {
     const proto = location.protocol === "https:" ? "wss" : "ws";
-    ws = new WebSocket(`${proto}://${location.host}/ws`);
+    ws = new WebSocket(`${proto}://${location.host}/ws${location.search}`);
     ws.onopen = () => {
       backoff = 500;
       state.connected = true;
@@ -88,24 +128,12 @@
         state.buildId = msg.build_id;
         document.title = `Livecaster — ${msg.session_id}`;
         break;
-      case "state":
-        applyState(msg.session);
-        break;
-      case "patch":
-        applyPatch(msg);
-        break;
-      case "segment":
-        addSegment(msg.segment);
-        break;
-      case "status":
-        applyStatus(msg);
-        break;
-      case "toast":
-        toast(msg.level, msg.text);
-        break;
-      case "done":
-        showDone(msg);
-        break;
+      case "state": applyState(msg.session); break;
+      case "patch": applyPatch(msg); break;
+      case "segment": addSegment(msg.segment); break;
+      case "status": applyStatus(msg); break;
+      case "toast": toast(msg.level, msg.text); break;
+      case "done": showDone(msg); break;
     }
   }
 
@@ -116,134 +144,54 @@
     state.outline = session.outline || [];
     state.states = session.nodes || {};
     state.nodesById = new Map(state.outline.map((n) => [n.id, n]));
-    buildOutline();
-    renderSide();
+    buildScore();
+    renderBudget();
+    renderOverlay();
     renderStatusBar();
   }
 
   function applyPatch(patch) {
+    const shape = shapeKey();
     if (patch.nodes) {
-      for (const [id, st] of Object.entries(patch.nodes)) {
-        state.states[id] = st;
-        updateNode(id);
-      }
-      updateAncestorFractions(Object.keys(patch.nodes));
+      for (const [id, st] of Object.entries(patch.nodes)) state.states[id] = st;
     }
-    if (patch.suggestions) {
-      state.session.suggestions = patch.suggestions;
-      markCurrent();
-    }
+    if (patch.suggestions) state.session.suggestions = patch.suggestions;
     if (patch.mentions) state.session.mentions = patch.mentions;
     if (patch.usage) state.session.usage = patch.usage;
     if (patch.language) state.session.language = patch.language;
-    if (patch.session_status) {
-      state.session.status = patch.session_status;
-      renderStatusBar();
+    if (patch.target_minutes !== undefined) state.session.target_minutes = patch.target_minutes;
+    if (patch.session_status) state.session.status = patch.session_status;
+
+    // A system that just came to rest, or a passage that just became the one to
+    // play, changes the shape of the score. Anything else only recolours lines,
+    // and replacing the DOM under someone mid-glance is the one thing this
+    // structure must never do.
+    if (patch.nodes || patch.suggestions) {
+      if (shapeKey() !== shape) buildScore();
+      else {
+        for (const id of Object.keys(patch.nodes || {})) updateStave(id);
+        if (patch.suggestions) for (const id of state.elements.keys()) updateStave(id);
+        updateFractions();
+      }
     }
-    renderSide();
+    if (patch.session_status) renderStatusBar();
+    renderBudget();
+    renderOverlay();
     updateEdges();
   }
 
-  // ----------------------------------------------------------------- outline
+  // =================================================================== score
 
-  function buildOutline() {
-    const root = $("#outline");
-    root.innerHTML = "";
-    $("#outline-empty").classList.toggle("hidden", state.outline.length > 0);
-    state.elements.clear();
-    state.order = [];
-    for (const node of state.outline) {
-      if (node.kind === "meta") continue;
-      const wrapper = el("div", `node ${node.kind}`);
-      if (node.kind === "heading") wrapper.classList.add(`h${node.level}`);
-      else wrapper.classList.add(`depth-${Math.min(node.level + 1, 4)}`);
-      wrapper.dataset.id = node.id;
-
-      const row = el("div", "row");
-      const keycap = el("span", "keycap hidden");
-      const text = el("span", "text");
-      text.innerHTML = inlineMd(node.text_md || node.text || "");
-      const frac = el("span", "frac");
-      const badge = el("span", "badge-time");
-      row.append(keycap, text, frac, badge);
-
-      const reason = el("div", "reason hidden");
-      const segue = el("div", "segue hidden");
-      const prep = el("div", "prep hidden");
-      wrapper.append(row, reason, segue, prep);
-      root.appendChild(wrapper);
-
-      state.elements.set(node.id, { root: wrapper, row, text, badge, reason, segue, frac, keycap, prep });
-      if (node.coverable) state.order.push(node.id);
-
-      row.addEventListener("click", (e) => {
-        select(node.id);
-        if (e.altKey) togglePin(node.id);
-      });
-      row.addEventListener("dblclick", () => toggleCovered(node.id));
+  function systemLevel() {
+    const counts = new Map();
+    for (const n of state.outline) {
+      if (n.kind === "heading") counts.set(n.level, (counts.get(n.level) || 0) + 1);
     }
-    for (const id of state.elements.keys()) updateNode(id);
-    updateAncestorFractions(Array.from(state.elements.keys()));
-    markCurrent();
-    if (!state.selected && state.order.length) select(state.order[0], false);
-    updateEdges();
-  }
-
-  function updateNode(id) {
-    const parts = state.elements.get(id);
-    if (!parts) return;
-    const st = state.states[id] || {};
-    const cls = parts.root.classList;
-    cls.remove("warm", "touched", "covered", "skipped", "hot", "pinned");
-    if (st.warm > 0 && st.status !== "covered") cls.add("warm");
-    if (st.status === "touched") cls.add("touched");
-    if (st.status === "covered") cls.add("covered");
-    if (st.status === "skipped") cls.add("skipped");
-    if (st.pinned) cls.add("pinned");
-
-    parts.badge.textContent = st.status === "covered" && st.covered_at != null ? hms(st.covered_at) : "";
-
-    if (st.hot && st.status !== "covered" && st.status !== "skipped") {
-      cls.add("hot");
-      parts.keycap.textContent = st.hot.rank && st.hot.rank <= 3 ? String(st.hot.rank) : "";
-      parts.keycap.classList.toggle("hidden", !(st.hot.rank && st.hot.rank <= 3));
-      // The map marks; it does not explain. The words live in Now, one click away.
-      const show = state.dense || state.expanded === id || state.selected === id;
-      parts.reason.textContent = st.hot.reason || "";
-      parts.reason.classList.toggle("hidden", !(show && st.hot.reason));
-      parts.segue.textContent = st.hot.segue || "";
-      parts.segue.classList.toggle("hidden", !(show && st.hot.segue));
-    } else {
-      parts.keycap.classList.add("hidden");
-      parts.reason.classList.add("hidden");
-      parts.segue.classList.add("hidden");
-    }
-  }
-
-  // The outline is written for reading before the show; live it has to fit a glance.
-  // Cut at the first real break — em dash, colon, bracket, sentence end.
-  function glance(text, max = 46) {
-    let t = (text || "").replace(/\s+/g, " ").trim();
-    const cut = t.search(/\s+[—–-]\s+|:\s|\s\(|[.?!]\s/);
-    if (cut > 12) t = t.slice(0, cut);
-    if (t.length > max) t = t.slice(0, max - 1).replace(/[\s,;.]+$/, "") + "…";
-    return t;
-  }
-
-  function expand(id) {
-    state.expanded = state.expanded === id ? null : id;
-    renderSide();
-    for (const nid of state.elements.keys()) updateNode(nid);
-  }
-
-  function setDense(on) {
-    state.dense = on;
-    localStorage.setItem("lc.dense", on ? "1" : "0");
-    document.body.classList.toggle("dense", on);
-    const btn = $("#btn-density");
-    if (btn) btn.textContent = on ? "▤" : "▥";
-    renderSide();
-    for (const id of state.elements.keys()) updateNode(id);
+    if (!counts.size) return 1;
+    const levels = [...counts.keys()].sort((a, b) => a - b);
+    // "# My episode" followed by "## 1 …" "## 2 …" means the sections are the
+    // systems and the h1 is the title of the whole score.
+    return levels.find((l) => counts.get(l) > 1) ?? levels[0];
   }
 
   function coverableUnder(id) {
@@ -260,54 +208,313 @@
     return out;
   }
 
-  function updateAncestorFractions(changedIds) {
-    const headings = new Set();
-    for (const node of state.outline) if (node.kind === "heading") headings.add(node.id);
-    for (const id of headings) {
-      const parts = state.elements.get(id);
-      if (!parts) continue;
-      const leaves = coverableUnder(id);
-      if (!leaves.length) { parts.frac.textContent = ""; continue; }
-      const done = leaves.filter((l) => {
-        const s = state.states[l];
-        return s && (s.status === "covered" || s.status === "skipped");
-      }).length;
-      parts.frac.textContent = `${done}/${leaves.length}`;
-    }
-    void changedIds;
+  // The one passage to play now: rank 1 among the hot items still open.
+  function livePassage() {
+    const sug = (state.session && state.session.suggestions) || {};
+    const ranked = (sug.next || [])
+      .filter((x) => isOpen(state.states[x.node_id]) && state.nodesById.has(x.node_id))
+      .sort((a, b) => (a.rank || 9) - (b.rank || 9));
+    return ranked[0] || null;
   }
 
-  function markCurrent() {
-    for (const parts of state.elements.values()) parts.root.classList.remove("current");
-    const cur = state.session && state.session.suggestions && state.session.suggestions.current;
-    if (cur && cur.node_id) {
-      const parts = state.elements.get(cur.node_id);
-      if (parts) parts.root.classList.add("current");
-    }
-  }
-
-  function select(id, scroll = true) {
-    if (state.selected) {
-      const prev = state.elements.get(state.selected);
-      if (prev) {
-        prev.root.classList.remove("selected");
-        prev.prep.classList.add("hidden");
+  // Group the flat outline into systems: one per heading at the shallowest
+  // heading level, plus an unnamed opening system for anything before the first.
+  function groupSystems() {
+    const top = systemLevel();
+    const groups = [];
+    let current = null;
+    for (const node of state.outline) {
+      if (node.kind === "meta") continue;
+      if (node.kind === "heading" && node.level === top) {
+        current = { heading: node, rows: [] };
+        groups.push(current);
+        continue;
       }
+      if (!current) {
+        current = { heading: null, rows: [] };
+        groups.push(current);
+      }
+      current.rows.push(node);
     }
-    state.selected = id;
-    const parts = state.elements.get(id);
-    if (parts) {
-      parts.root.classList.add("selected");
-      renderPreflight(id, parts);
-      if (scroll) parts.root.scrollIntoView({ block: "nearest" });
-    }
-    send({ type: "select", node_id: id });
+    return groups;
   }
 
-  function renderPreflight(id, parts) {
+  // Two facts decide the score's shape. Everything else is a line's colour.
+  function shapeKey() {
+    const live = livePassage();
+    const groups = groupSystems();
+    const resting = restingKeys(groups, live);
+    const rest = groups.map((g) => (resting.has(groupKey(g)) ? "1" : "0")).join("");
+    return `${live ? live.node_id : ""}|${rest}`;
+  }
+
+  function leavesOf(group) {
+    return group.heading
+      ? coverableUnder(group.heading.id)
+      : group.rows.filter((n) => n.coverable).map((n) => n.id);
+  }
+
+  const groupKey = (g) => (g.heading ? g.heading.id : "");
+
+  // Which systems are folded to their heading line. Finished ones rest because
+  // they are behind you. Unstarted ones more than one system from the passage
+  // you are playing rest too: without that, an unread section spends its full
+  // height on lines nobody has reached and pushes the one thing that matters
+  // off the bottom of the screen. Autoscroll is an anti-goal, so compression
+  // is what has to keep the passage in reach.
+  function restingKeys(groups, live) {
+    let anchor = -1;
+    groups.forEach((g, i) => {
+      const leaves = leavesOf(g);
+      if (live && leaves.includes(live.node_id)) anchor = i;
+    });
+    if (anchor < 0 && state.selected) {
+      groups.forEach((g, i) => { if (leavesOf(g).includes(state.selected)) anchor = i; });
+    }
+    const out = new Set();
+    groups.forEach((g, i) => {
+      const key = groupKey(g);
+      if (state.openRest.has(key)) return;
+      const leaves = leavesOf(g);
+      if (!leaves.length) return;
+      const done = leaves.filter((id) => !isOpen(state.states[id])).length;
+      if (done === leaves.length) { out.add(key); return; }
+      if (done === 0 && anchor >= 0 && Math.abs(i - anchor) > 1) out.add(key);
+    });
+    return out;
+  }
+
+  function updateFractions() {
+    for (const sys of state.systems) {
+      if (!sys.frac) continue;
+      const done = sys.leaves.filter((id) => !isOpen(state.states[id])).length;
+      sys.frac.textContent = restful(sys.leaves, done);
+    }
+  }
+
+  function buildScore() {
+    const root = $("#systems");
+    const keepScroll = $("#score").scrollTop;
+    root.innerHTML = "";
+    $("#score-empty").classList.toggle("hidden", state.outline.length > 0);
+    state.elements.clear();
+    state.systems = [];
+    state.letters.clear();
+    state.order = [];
+
+    const live = livePassage();
+    let groups = groupSystems();
+    const resting = restingKeys(groups, live);
+
+    if (groups.length && !groups[0].heading && !groups[0].rows.some((n) => n.coverable)) {
+      for (const node of groups[0].rows) {
+        const title = el("div", "score-title");
+        title.innerHTML = inlineMd(node.text_md || node.text || "");
+        root.append(title);
+      }
+      groups = groups.slice(1);
+    }
+
+    groups.forEach((group, index) => {
+      const letter = letterFor(index);
+      const sys = el("section", "system");
+      const margin = el("div", "margin");
+      const mark = el("button", "rmark", letter);
+      mark.type = "button";
+      mark.title = `Jump here. Press ${letter}.`;
+      mark.setAttribute("aria-label", `Jump to ${group.heading ? group.heading.text : "the opening"}`);
+      margin.append(mark);
+
+      const col = el("div");
+      const leaves = leavesOf(group);
+      const done = leaves.filter((id) => !isOpen(state.states[id])).length;
+      const key = group.heading ? group.heading.id : "";
+
+      let frac = null;
+      if (group.heading) {
+        const name = el("div", "sysname");
+        const h = el("h2");
+        h.innerHTML = inlineMd(group.heading.text_md || group.heading.text || "");
+        name.append(h);
+        if (leaves.length) {
+          frac = el("span", "frac num", restful(leaves, done));
+          if (!done) frac.textContent = `${leaves.length} ahead`;
+          name.append(frac);
+        }
+        col.append(name);
+        // A rested system still has to be reachable: a mark made inside it can
+        // only be undone if the lines can be brought back.
+        name.style.cursor = "pointer";
+        name.addEventListener("click", () => {
+          if (state.openRest.has(key)) state.openRest.delete(key);
+          else state.openRest.add(key);
+          buildScore();
+        });
+      }
+
+      // A system whose every line is behind you rests to one line.
+      const isLive = !!(live && leaves.includes(live.node_id));
+      const rests = resting.has(key) && !isLive;
+      if (rests) sys.classList.add("is-rest");
+      if (isLive) sys.classList.add("is-live");
+      if (rests && done === 0) sys.classList.add("is-ahead");
+
+      if (!rests) {
+        for (const node of group.rows) {
+          if (node.kind === "heading" && node.level < systemLevel()) {
+            const title = el("div", "score-title");
+            title.innerHTML = inlineMd(node.text_md || node.text || "");
+            col.append(title);
+            continue;
+          }
+          if (node.kind === "heading") {
+            const sub = el("div", "substave");
+            sub.innerHTML = inlineMd(node.text_md || node.text || "");
+            col.append(sub);
+            continue;
+          }
+          if (live && node.id === live.node_id) col.append(playNode(node, live));
+          else col.append(staveNode(node));
+        }
+      }
+
+      sys.append(margin, col);
+      root.append(sys);
+
+      const entry = { letter, heading: group.heading, el: sys, mark, frac, leaves };
+      state.systems.push(entry);
+      state.letters.set(letter, entry);
+      mark.addEventListener("click", () => jumpTo(letter));
+    });
+
+    for (const id of state.elements.keys()) updateStave(id);
+    if (!state.selected || !state.elements.has(state.selected)) {
+      if (state.order.length) select(state.order[0], false);
+    } else {
+      const parts = state.elements.get(state.selected);
+      if (parts) parts.root.classList.add("selected");
+    }
+    $("#score").scrollTop = keepScroll;
+    updateEdges();
+  }
+
+  // "3/7" while there is something left, the times once there is not.
+  function restful(leaves, done) {
+    if (done < leaves.length) return `${done}/${leaves.length}`;
+    const times = leaves
+      .map((id) => (state.states[id] || {}).covered_at)
+      .filter((t) => t != null)
+      .sort((a, b) => a - b);
+    if (!times.length) return `all ${leaves.length}`;
+    const span = times.length > 1 && times[0] !== times[times.length - 1]
+      ? `${hms(times[0]).slice(0, 5)}–${hms(times[times.length - 1]).slice(0, 5)}`
+      : hms(times[0]).slice(0, 5);
+    return `all ${leaves.length} · ${span}`;
+  }
+
+  function staveNode(node) {
+    const row = el("div", "stave");
+    row.dataset.id = node.id;
+    const t = el("span", "t num");
+    const mk = el("span", "mk");
+    const body = el("span", "body");
+    body.innerHTML = inlineMd(node.text_md || node.text || "");
+    const rank = el("span", "rank hidden");
+    const pin = el("span", "pin");
+    row.append(t, mk, body, pin, rank);
+
+    const prep = el("div", "prep hidden");
+    const holder = el("div");
+    holder.append(row, prep);
+
+    state.elements.set(node.id, { root: row, holder, t, mk, body, prep, rank, pin });
+    if (node.coverable) state.order.push(node.id);
+
+    row.addEventListener("click", (e) => {
+      select(node.id);
+      if (e.altKey) togglePin(node.id);
+    });
+    row.addEventListener("dblclick", () => toggleCovered(node.id));
+    return holder;
+  }
+
+  // The passage to play now, in conductor's pencil, with its cue note.
+  function playNode(node, item) {
+    const wrap = el("div", "play");
+    wrap.dataset.id = node.id;
+    if (item.rank) wrap.append(el("span", "rank num", String(item.rank)));
+
+    const line = el("p", "line");
+    line.innerHTML = inlineMd(node.text_md || node.text || "");
+    wrap.append(line);
+
+    if (item.reason || item.segue) {
+      const cue = el("div", "cue");
+      if (item.reason) cue.append(el("p", "why", item.reason));
+      if (item.segue) cue.append(el("p", "segue", `„${item.segue}“`));
+      wrap.append(cue);
+    }
+
+    const prep = el("div", "prep hidden");
+    wrap.append(prep);
+
+    state.elements.set(node.id, { root: wrap, holder: wrap, t: null, mk: null, body: line, prep, rank: null, pin: null });
+    if (node.coverable) state.order.push(node.id);
+    line.addEventListener("click", () => select(node.id));
+    wrap.addEventListener("dblclick", () => toggleCovered(node.id));
+    return wrap;
+  }
+
+  function updateStave(id) {
+    const parts = state.elements.get(id);
+    if (!parts) return;
+    const node = state.nodesById.get(id) || {};
+    const st = state.states[id] || {};
+    const cls = parts.root.classList;
+    cls.remove("warm", "touched", "cut", "skipped", "hot", "pinned", "accent", "current");
+
+    if (st.warm > 0 && isOpen(st)) cls.add("warm");
+    if (st.status === "touched") cls.add("warm");
+    if (st.status === "covered") cls.add("cut");
+    const was = state.seenStatus.get(id);
+    state.seenStatus.set(id, st.status || "untouched");
+    if (was !== undefined && was !== "covered" && st.status === "covered") {
+      cls.add("just-cut");
+      setTimeout(() => cls.remove("just-cut"), 460);
+    }
+    if (st.status === "skipped") cls.add("skipped");
+    if (st.pinned) cls.add("pinned");
+    if (node.must) cls.add("accent");
+    if (st.hot && isOpen(st)) cls.add("hot");
+
+    if (parts.mk) {
+      const marked = node.must && isOpen(st);
+      parts.mk.innerHTML = marked ? MARCATO : "";
+      parts.mk.title = marked ? "You marked this one" : "";
+    }
+    if (parts.pin) parts.pin.innerHTML = st.pinned ? PINNED : "";
+    if (parts.t) {
+      parts.t.textContent = st.status === "covered" && st.covered_at != null
+        ? hms(st.covered_at).slice(0, 5)
+        : st.status === "skipped" ? "tacet" : "";
+    }
+    if (parts.rank) {
+      const r = st.hot && st.hot.rank && st.hot.rank <= 3 ? String(st.hot.rank) : "";
+      parts.rank.textContent = r;
+      parts.rank.classList.toggle("hidden", !r);
+    }
+
+    const cur = state.session && state.session.suggestions && state.session.suggestions.current;
+    if (cur && cur.node_id === id) cls.add("current");
+
+    renderPrep(id, parts);
+  }
+
+  function renderPrep(id, parts) {
+    const show = state.dense || state.selected === id;
     const pf = state.session && state.session.preflight;
     const node = pf && pf.nodes && pf.nodes[id];
-    if (!node || (!node.questions.length && !node.related.length)) {
+    if (!show || !node || (!node.questions.length && !node.related.length)) {
       parts.prep.classList.add("hidden");
       return;
     }
@@ -320,6 +527,30 @@
       parts.prep.append(el("div", "prep-rel", `↔ ${related}`));
     }
     parts.prep.classList.remove("hidden");
+  }
+
+  function select(id, scroll = true) {
+    if (state.selected) {
+      const prev = state.elements.get(state.selected);
+      if (prev) { prev.root.classList.remove("selected"); renderPrep(state.selected, prev); }
+    }
+    state.selected = id;
+    const parts = state.elements.get(id);
+    if (parts) {
+      parts.root.classList.add("selected");
+      renderPrep(id, parts);
+      if (scroll) parts.root.scrollIntoView({ block: "nearest" });
+    }
+    send({ type: "select", node_id: id });
+  }
+
+  // Type the capital you see in the margin.
+  function jumpTo(letter) {
+    const sys = state.letters.get(letter);
+    if (!sys) return;
+    sys.el.scrollIntoView({ block: "start", behavior: "smooth" });
+    const first = state.order.find((id) => sys.el.contains((state.elements.get(id) || {}).root));
+    if (first) select(first, false);
   }
 
   function moveSelection(delta) {
@@ -342,133 +573,196 @@
     send({ type: "pin", node_id: id, pinned: !st.pinned });
   }
 
-  // -------------------------------------------------------- edge indicators
-
-  function updateEdges() {
-    const pane = $("#outline");
-    const rect = pane.getBoundingClientRect();
-    let above = 0, below = 0, firstAbove = null, firstBelow = null;
-    for (const [id, st] of Object.entries(state.states)) {
-      if (!st.hot || st.status === "covered" || st.status === "skipped") continue;
-      const parts = state.elements.get(id);
-      if (!parts) continue;
-      const r = parts.root.getBoundingClientRect();
-      if (r.bottom < rect.top) { above++; firstAbove = firstAbove || parts.root; }
-      else if (r.top > rect.bottom) { below++; firstBelow = firstBelow || parts.root; }
-    }
-    const up = $("#edge-up"), down = $("#edge-down");
-    up.querySelector("span").textContent = String(above);
-    down.querySelector("span").textContent = String(below);
-    up.classList.toggle("hidden", above === 0);
-    down.classList.toggle("hidden", below === 0);
-    up.onclick = () => firstAbove && firstAbove.scrollIntoView({ block: "center", behavior: "smooth" });
-    down.onclick = () => firstBelow && firstBelow.scrollIntoView({ block: "center", behavior: "smooth" });
+  function setDense(on) {
+    state.dense = on;
+    localStorage.setItem("lc.dense", on ? "1" : "0");
+    for (const id of state.elements.keys()) updateStave(id);
   }
 
-  // -------------------------------------------------------------- side panel
+  // ================================================================= budget
 
-  function renderSide() {
+  // Time against plan. One line. It informs; it never regroups the score.
+  function renderBudget() {
     const s = state.session;
-    if (!s) return;
+    const box = $("#budget");
+    const of = $("#of");
+    if (!s) { box.textContent = ""; return; }
+
+    const open = state.order.filter((id) => isOpen(state.states[id]));
+    const marked = open.filter((id) => (state.nodesById.get(id) || {}).must);
+
+    const target = s.target_minutes;
+    box.innerHTML = "";
+    if (target) {
+      of.textContent = `of ${hms(target * 60).replace(/^00:/, "")}`;
+      of.classList.remove("hidden");
+      const left = Math.round(target * 60 - (state.status.clock || 0));
+      const span = el("span");
+      if (left >= 0) {
+        span.append(el("b", "", String(Math.max(0, Math.round(left / 60)))), document.createTextNode(" min left"));
+      } else {
+        span.append(el("b", "over", String(Math.round(-left / 60))), document.createTextNode(" min over"));
+      }
+      box.append(span);
+    } else {
+      of.classList.add("hidden");
+    }
+
+    if (state.order.length) {
+      const span = el("span");
+      span.append(el("b", "", String(open.length)), document.createTextNode(" unasked"));
+      box.append(span);
+    }
+    if (marked.length) {
+      const span = el("span", "marked");
+      span.textContent = `${marked.length} you marked`;
+      span.title = marked.map((id) => shorten((state.nodesById.get(id) || {}).text || "", 60)).join(" · ");
+      box.append(span);
+    }
+  }
+
+  // ---------------------------------------------------------- edge markers
+
+  function systemOf(node) {
+    return state.systems.find((sys) => sys.el.contains(node)) || null;
+  }
+
+  // The passage you are playing is the only thing worth an edge marker, and the
+  // marker says which letter reaches it — so it is the answer and the key at once.
+  function updateEdges() {
+    const pane = $("#score");
+    const rect = pane.getBoundingClientRect();
+    const up = $("#edge-up"), down = $("#edge-down");
+    const live = livePassage();
+    const parts = live && state.elements.get(live.node_id);
+
+    let target = null, dir = null;
+    if (parts) {
+      const r = parts.root.getBoundingClientRect();
+      if (r.bottom < rect.top + 4) dir = "up";
+      else if (r.top > rect.bottom - 4) dir = "down";
+      target = parts.root;
+    }
+
+    for (const [edge, want] of [[up, "up"], [down, "down"]]) {
+      const on = dir === want;
+      edge.classList.toggle("hidden", !on);
+      if (!on) continue;
+      const sys = systemOf(target);
+      const letter = sys ? sys.letter : "";
+      edge.querySelector("span").textContent = letter
+        ? `${letter} · the one to go to, ${want === "up" ? "above" : "below"}`
+        : `the one to go to, ${want === "up" ? "above" : "below"}`;
+      edge.onclick = () => target.scrollIntoView({ block: "center", behavior: "smooth" });
+    }
+  }
+
+  // ================================================================ overlay
+
+  const OVERLAY_TITLE = {
+    transcript: "Transcript",
+    questions: "Questions worth asking",
+    mentions: "Mentions and links",
+    new: "Not in the outline",
+  };
+
+  function toggleOverlay(name) {
+    state.overlay = state.overlay === name ? null : name;
+    renderOverlay();
+  }
+
+  function closeOverlay() {
+    state.overlay = null;
+    renderOverlay();
+  }
+
+  function renderOverlay() {
+    const panel = $("#overlay");
+    panel.classList.toggle("hidden", !state.overlay);
+    if (!state.overlay) return;
+    $("#overlay-title").textContent = OVERLAY_TITLE[state.overlay] || "";
+    const body = $("#overlay-body");
+    body.innerHTML = "";
+    const s = state.session || {};
     const sug = s.suggestions || {};
 
-    const now = $("#now-summary");
-    now.textContent = (sug.current && sug.current.summary) || "Waiting for the first tick…";
-    now.classList.toggle("muted", !(sug.current && sug.current.summary));
+    if (state.overlay === "transcript") {
+      for (const seg of state.segments) body.append(segmentNode(seg));
+      body.scrollTop = body.scrollHeight;
+      return;
+    }
 
-    const next = $("#next-list");
-    next.innerHTML = "";
-    for (const item of sug.next || []) {
-      const node = state.nodesById.get(item.node_id);
-      const li = el("li");
-      const head = el("div", "head");
-      head.append(el("span", "rank", `${"①②③④⑤"[(item.rank || 1) - 1] || "•"}`));
-      head.append(el("span", "title", item.label || glance(node ? (node.text || node.text_md) : item.node_id)));
-      li.append(head);
-      const open = state.dense || state.expanded === item.node_id;
-      if (item.reason || item.segue) {
-        const more = el("div", "more" + (open ? "" : " hidden"));
-        if (item.segue) more.append(el("div", "segue", `„${item.segue}“`));
-        if (item.reason) more.append(el("div", "why", item.reason));
-        li.append(more);
-        li.classList.add("expandable");
+    const list = el("ul");
+    if (state.overlay === "questions") {
+      for (const q of sug.questions || []) {
+        const li = el("li");
+        li.append(el("span", "", q.text));
+        if (q.why) li.append(el("span", "why", q.why));
+        if (q.node_id) {
+          li.classList.add("clickable");
+          li.addEventListener("click", () => { select(q.node_id); closeOverlay(); });
+        }
+        list.append(li);
       }
-      li.classList.toggle("open", open);
-      li.addEventListener("click", () => { expand(item.node_id); select(item.node_id); });
-      next.append(li);
-    }
-
-    const ql = $("#questions-list");
-    ql.innerHTML = "";
-    for (const q of sug.questions || []) {
-      const li = el("li");
-      li.append(el("div", "qtext", q.text));
-      if (q.why && state.dense) li.append(el("span", "why", q.why));
-      if (q.node_id) li.addEventListener("click", () => select(q.node_id));
-      ql.append(li);
-    }
-
-    const ml = $("#mentions-list");
-    ml.innerHTML = "";
-    const icons = { person: "👤", book: "📖", article: "📰", link: "🔗", tool: "🛠", product: "📦", place: "📍", event: "🎪", concept: "💡", promise: "🤝", other: "•" };
-    for (const m of s.mentions || []) {
-      const li = el("li");
-      li.append(el("span", "", `${icons[m.kind] || "•"} `));
-      li.append(el("strong", "", m.text));
-      if (m.url) {
-        const a = el("a", "", " 🔗");
-        a.href = m.url; a.target = "_blank"; a.rel = "noreferrer";
-        li.append(a);
-      } else if (m.needs_link) {
-        li.append(el("span", "todo", " 🔗 TODO"));
+      if (!list.children.length) list.append(el("li", "empty", "Nothing yet. The model proposes these as it listens."));
+    } else if (state.overlay === "mentions") {
+      for (const m of s.mentions || []) {
+        const li = el("li");
+        li.append(el("strong", "", m.text));
+        if (m.kind) li.append(el("span", "kind", ` ${m.kind}`));
+        if (m.url) {
+          const a = el("a", "", m.url);
+          a.href = m.url; a.target = "_blank"; a.rel = "noreferrer";
+          li.append(document.createElement("br"), a);
+        } else if (m.needs_link) {
+          li.append(document.createElement("br"), el("span", "todo", "needs a link"));
+        }
+        list.append(li);
       }
-      ml.append(li);
+      if (!list.children.length) list.append(el("li", "empty", "Nothing named yet."));
+    } else if (state.overlay === "new") {
+      for (const t of sug.new_topics || []) {
+        const li = el("li");
+        li.append(el("strong", "", t.title));
+        if (t.summary) li.append(el("span", "why", t.summary));
+        list.append(li);
+      }
+      if (!list.children.length) list.append(el("li", "empty", "Everything so far was on the plan."));
     }
-
-    const nl = $("#newtopics-list");
-    nl.innerHTML = "";
-    for (const t of sug.new_topics || []) {
-      const li = el("li");
-      li.append(el("strong", "", t.title));
-      if (t.summary) li.append(el("div", "muted", t.summary));
-      nl.append(li);
-    }
-
-    setCount("questions", (sug.questions || []).length);
-    setCount("mentions", (s.mentions || []).length);
-    setCount("new", (sug.new_topics || []).length);
-  }
-
-  function setCount(tab, n) {
-    const btn = document.querySelector(`.tab[data-tab="${tab}"]`);
-    if (!btn) return;
-    let c = btn.querySelector(".count");
-    if (!c) { c = el("span", "count"); btn.append(c); }
-    c.textContent = n ? ` ${n}` : "";
+    body.append(list);
   }
 
   const speakerColors = new Map();
-  function addSegment(seg) {
-    state.segments.push(seg);
-    const box = $("#transcript");
+
+  function segmentNode(seg) {
     const div = el("div", "seg");
-    div.append(el("span", "t", hms(seg.t0)));
+    div.append(el("span", "t num", hms(seg.t0).slice(0, 8)));
     if (seg.speaker) {
       if (!speakerColors.has(seg.speaker)) speakerColors.set(seg.speaker, speakerColors.size % 3);
       div.append(el("span", `sp sp-${speakerColors.get(seg.speaker)}`, seg.speaker));
     }
     div.append(document.createTextNode(seg.text));
-    const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 60;
-    box.append(div);
-    if (atBottom) box.scrollTop = box.scrollHeight;
-    while (box.children.length > 600) box.removeChild(box.firstChild);
+    return div;
   }
 
-  // ------------------------------------------------------------- status bar
+  function addSegment(seg) {
+    state.segments.push(seg);
+    while (state.segments.length > 900) state.segments.shift();
+    if (state.overlay !== "transcript") return;
+    const body = $("#overlay-body");
+    const atBottom = body.scrollHeight - body.scrollTop - body.clientHeight < 60;
+    body.append(segmentNode(seg));
+    if (atBottom) body.scrollTop = body.scrollHeight;
+  }
+
+  // ============================================================= status bar
 
   function setPill(node, text, cls) {
     node.textContent = text;
     node.className = `pill${cls ? " " + cls : ""}`;
+    if (node.id === "llm-status" || node.id === "cost-status" || node.id === "lang-status") {
+      node.classList.add("clickable");
+    }
   }
 
   function applyStatus(st) {
@@ -488,26 +782,32 @@
       text = `LLM ${llm.state === "ticking" ? "ticking" : "ok"}` +
         (age != null ? ` ${Math.round(age)}s ago` : "") +
         (llm.last_latency_ms ? ` ${(llm.last_latency_ms / 1000).toFixed(1)}s` : "");
-      cls = "ok";
     } else if (llm.state === "error" || llm.state === "backoff") {
-      text = `LLM ${llm.state}${llm.error ? ": " + llm.error.slice(0, 40) : ""}`;
+      text = llm.error ? humanError(llm.error) : `LLM ${llm.state}`;
       cls = "err";
     } else if (llm.state === "idle") {
       text = "LLM idle";
     }
     const pill = $("#llm-status");
     setPill(pill, text, cls);
-    pill.classList.add("clickable");
-    pill.title = llm.interval_s
+    // Coverage is the model's work. Two failed ticks in a row and the map is no
+    // longer tracking the conversation, so it must stop looking like it is:
+    // an untouched section and a section nobody has discussed render alike.
+    if (llm.state === "error" || llm.state === "backoff") state.llmFails += 1;
+    else if (llm.state === "ok" || llm.state === "ticking") {
+      state.llmFails = 0;
+      if (llm.last_tick_t != null) state.lastTickAt = llm.last_tick_t;
+    }
+    renderTracking();
+    pill.title = (llm.error ? llm.error + " · " : "") + (llm.interval_s
       ? `A tick every ${llm.interval_s}s once ${llm.min_new_words} new words were said, `
         + `and immediately past ${llm.burst_words}. Click to change.`
-      : "Click to change how often the model is asked.";
+      : "Click to change how often the model is asked.");
 
     const u = (state.session && state.session.usage) || {};
     const cached = u.prompt_tokens ? Math.round((u.cached_tokens / u.prompt_tokens) * 100) : 0;
     setPill($("#cost-status"),
-      `$${(u.cost_usd || 0).toFixed(3)} · ${u.ticks || 0} ticks · ${cached}% cached`, "clickable");
-    drawSparkline(llm.latencies_ms || []);
+      `$${(u.cost_usd || 0).toFixed(3)} · ${u.ticks || 0} ticks · ${cached}% cached`, "");
 
     if (state.session) state.session.status = st.session_status;
     if ((st.sync_marks || []).length) {
@@ -515,23 +815,9 @@
       badge.textContent = `sync ${hms(st.sync_marks[st.sync_marks.length - 1])}`;
       badge.classList.remove("hidden");
     }
+    renderBudget();
     renderStatusBar();
   }
-
-  function drawSparkline(latencies) {
-    const svg = $("#sparkline");
-    const line = $("#spark-line");
-    if (!latencies.length) { svg.classList.add("hidden"); return; }
-    svg.classList.remove("hidden");
-    const points = latencies.slice(-20);
-    const max = Math.max(...points, 1000);
-    const step = points.length > 1 ? 120 / (points.length - 1) : 120;
-    line.setAttribute("points", points.map((ms, i) => `${(i * step).toFixed(1)},${(23 - (ms / max) * 22).toFixed(1)}`).join(" "));
-    svg.classList.toggle("slow", points[points.length - 1] > 15000);
-    svg.setAttribute("title", `last tick ${(points[points.length - 1] / 1000).toFixed(1)}s, worst ${(max / 1000).toFixed(1)}s`);
-  }
-
-  // ---------------------------------------------------------------- language
 
   const LANGS = [
     ["auto", "Auto-detect"], ["sk", "Slovenčina"], ["cs", "Čeština"], ["en", "English"],
@@ -542,14 +828,13 @@
   function renderLanguagePill() {
     const stt = state.status.stt || {};
     const cur = stt.language || (state.session && state.session.language) || "auto";
-    const forced = cur !== "auto" && stt.can_force_language;
     const pill = $("#lang-status");
     if (!pill) return;
-    pill.textContent = `${cur === "auto" ? "🌐" : forced ? "🔒" : "🌐"} ${cur}`;
-    pill.classList.toggle("warn", cur !== "auto" && stt.can_force_language === false);
+    pill.textContent = cur;
+    pill.className = "pill clickable" + (cur !== "auto" && stt.can_force_language === false ? " warn" : "");
     let title = `Transcription language: ${cur}. Click to change.`;
     if (cur !== "auto" && stt.can_force_language === false) {
-      title = `${stt.engine || "this engine"} detects the language itself — ${cur} is a hint, not a lock. Click to change.`;
+      title = `${stt.engine || "this engine"} detects the language itself, so ${cur} is a hint rather than a lock. Click to change.`;
     }
     if (stt.dropped_language) title += ` ${stt.dropped_language} wrong-alphabet line(s) dropped.`;
     pill.title = title;
@@ -558,8 +843,7 @@
   function showLanguage() {
     const stt = state.status.stt || {};
     const cur = stt.language || (state.session && state.session.language) || "auto";
-    const note = $("#lang-note");
-    note.textContent = stt.can_force_language === false
+    $("#lang-note").textContent = stt.can_force_language === false
       ? `${stt.engine || "The engine"} detects the language per utterance and cannot be forced. `
         + "Setting one here fixes the language of the notes and drops lines in the wrong alphabet. "
         + "For a hard lock, restart with --set stt.engine=faster-whisper."
@@ -568,10 +852,7 @@
     box.innerHTML = "";
     for (const [code, label] of LANGS) {
       const b = el("button", "chip" + (code === cur ? " active" : ""), `${code} · ${label}`);
-      b.addEventListener("click", () => {
-        send({ type: "set_language", language: code });
-        $("#lang").close();
-      });
+      b.addEventListener("click", () => { send({ type: "set_language", language: code }); $("#lang").close(); });
       box.append(b);
     }
     $("#lang").showModal();
@@ -607,7 +888,7 @@
     for (const [name, db] of Object.entries(levels)) {
       let meter = box.querySelector(`[data-ch="${CSS.escape(name)}"]`);
       if (!meter) {
-        meter = el("div", "meter");
+        meter = el("span", "meter");
         meter.dataset.ch = name;
         meter.append(el("span", "", name));
         const bars = el("span", "bars");
@@ -623,13 +904,23 @@
     }
   }
 
+  function renderTracking() {
+    const stalled = state.llmFails >= 2;
+    document.body.classList.toggle("not-tracking", stalled);
+    const note = $("#tracking");
+    note.classList.toggle("hidden", !stalled);
+    if (stalled) {
+      note.textContent = state.lastTickAt != null
+        ? `coverage stopped at ${hms(state.lastTickAt)} · transcription still running`
+        : "coverage never started · transcription still running";
+    }
+  }
+
   function renderStatusBar() {
     renderLanguagePill();
     const status = (state.session && state.session.status) || "idle";
-    const dot = $("#rec-dot");
-    dot.className = "dot" + (status === "running" ? " rec" : status === "paused" ? " paused" : status === "finished" ? " done" : "");
-    // Finished is not the end: a second take reuses the same clock and outline,
-    // and re-runs the wrap-up over everything.
+    $("#clock").classList.toggle("is-rec", status === "running");
+    // Finished is not the end: a second take reuses the same clock and outline.
     const start = $("#btn-start");
     start.classList.toggle("hidden", status !== "idle" && status !== "finished");
     start.textContent = status === "finished" ? "Record again" : "Start";
@@ -639,15 +930,31 @@
     $("#busy").classList.toggle("hidden", status !== "finishing");
   }
 
-  // ---------------------------------------------------------------- toasts
+  // ================================================================= toasts
+
+  // Errors reach the host mid-interview. Name the problem and the recovery; the
+  // provider's raw JSON belongs in the log and the settings dialog.
+  function humanError(raw) {
+    const text = String(raw || "");
+    if (/\b401\b|authentication failed|invalid api key/i.test(text)) {
+      return "The provider rejected the API key. Open settings.";
+    }
+    if (/\b429\b|rate limit/i.test(text)) return "The provider is rate-limiting. Ticks will keep retrying.";
+    if (/\b(5\d\d)\b|timeout|timed out/i.test(text)) return "The provider is not answering. Ticks will keep retrying.";
+    if (/model .*not found|unknown model/i.test(text)) return "That model does not exist at this provider";
+    const clean = text.replace(/^\w*Error:\s*/, "").replace(/\s*\{[\s\S]*$/, "").trim();
+    return clean || "The model call failed";
+  }
 
   function toast(level, text) {
-    const node = el("div", `toast ${level || "info"}`, text);
+    const shown = level === "error" ? humanError(text) : text;
+    const node = el("div", `toast ${level || "info"}`, shown);
+    node.title = String(text || "");
     $("#toasts").append(node);
     setTimeout(() => node.remove(), 6000);
   }
 
-  // ------------------------------------------------------------------ result
+  // =================================================================== wrap
 
   const RESULT_ORDER = ["show_notes", "outline_annotated", "transcript_md", "transcript_srt", "chapters"];
   const RESULT_LABEL = {
@@ -660,12 +967,139 @@
   };
 
   function resultNames(paths) {
-    const names = Object.keys(paths || {});
-    return names.sort((a, b) => {
+    return Object.keys(paths || {}).sort((a, b) => {
       const ia = RESULT_ORDER.indexOf(a), ib = RESULT_ORDER.indexOf(b);
       return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
     });
   }
+
+  // Notes come back in the language of the podcast, so sections are found by heading
+  // level and never by their words. Everything inside a fence is text: a transcript
+  // quoting "## " must not open a section.
+  // Self-contained on purpose — tests/test_ui_sections.py runs this function alone.
+  function splitSections(markdown) {
+    const ATX = /^ {0,3}(#{2,3})\s+(.*?)\s*$/;
+    const FENCE = /^ {0,3}(`{3,}|~{3,})/;
+    const tidy = (s) => s.replace(/^(?:[ \t]*\n)+/, "").replace(/\s+$/, "");
+    const lines = String(markdown || "").split("\n");
+
+    const cuts = [];
+    let fence = null;
+    for (let i = 0; i < lines.length; i++) {
+      const f = lines[i].match(FENCE);
+      if (fence) {
+        if (f && f[1][0] === fence[0] && f[1].length >= fence.length) fence = null;
+        continue;
+      }
+      if (f) { fence = f[1]; continue; }
+      const m = lines[i].match(ATX);
+      if (m) cuts.push({ level: m[1].length, heading: m[2].replace(/\s+#+$/, ""), line: i });
+    }
+
+    const blocks = [];
+    const lead = tidy(lines.slice(0, cuts.length ? cuts[0].line : lines.length).join("\n"));
+    if (lead) blocks.push({ level: 0, heading: "", body: lead, text: "", children: [] });
+
+    let open = null;   // the ## a ### belongs to
+    for (let i = 0; i < cuts.length; i++) {
+      const cut = cuts[i];
+      let end = lines.length;
+      for (let j = i + 1; j < cuts.length; j++) {
+        if (cuts[j].level <= cut.level) { end = cuts[j].line; break; }
+      }
+      // A parent renders only what it holds itself; its children render themselves.
+      const next = cuts[i + 1];
+      const bodyEnd = next && next.line < end && next.level > cut.level ? next.line : end;
+      const node = {
+        level: cut.level,
+        heading: cut.heading,
+        body: tidy(lines.slice(cut.line + 1, bodyEnd).join("\n")),
+        // What the clipboard gets: the section without its heading, because nobody
+        // pastes "## Social post" into a social post.
+        text: tidy(lines.slice(cut.line + 1, end).join("\n")),
+        children: [],
+      };
+      if (cut.level === 2) { blocks.push(node); open = node; }
+      else if (open) open.children.push(node);
+      else blocks.push(node);
+    }
+    return blocks;
+  }
+
+  // The move at the end of an episode is to take one block somewhere else — the
+  // social post into a scheduler, the mentions into the episode page.
+  const sectionBlocks = new WeakMap();
+
+  const COPY_MARK =
+    '<svg viewBox="0 0 18 18" width="16" height="16" aria-hidden="true" focusable="false">' +
+    '<rect x="6.2" y="6.2" width="9.3" height="9.3" fill="none" stroke="currentColor" stroke-width="1.6"/>' +
+    '<path d="M11.8 3.6H4.4a1.8 1.8 0 0 0-1.8 1.8v7.4" fill="none" stroke="currentColor" ' +
+    'stroke-width="1.6" stroke-linecap="round"/></svg>';
+
+  // Each note is a system of its own, with its own mark in the margin — the
+  // same grammar as the score, read at rest instead of at a glance.
+  function sectionNode(block, mark) {
+    if (!block.level) {
+      const lead = el("div", "md-lead");
+      lead.innerHTML = window.marked.parse(block.body);
+      return lead;
+    }
+    const sec = el("section", block.text ? "md-sec copyable" : "md-sec");
+    if (block.level === 2 && mark) {
+      const margin = el("div", "md-margin");
+      margin.append(el("span", "rmark", mark));
+      sec.append(margin);
+      sec.classList.add("md-system");
+    }
+    const head = el("div", "md-sec-head");
+    const h = el(`h${block.level}`);
+    h.innerHTML = inlineMd(block.heading);
+    head.append(h);
+    if (block.text) {
+      const chip = el("button", "md-copy");
+      chip.type = "button";
+      chip.innerHTML = COPY_MARK;
+      chip.title = "Copy this section";
+      chip.setAttribute("aria-label", `Copy “${block.heading}”`);
+      head.append(chip);
+      sectionBlocks.set(sec, block);
+    }
+    sec.append(head);
+    if (block.body) {
+      const bodyEl = el("div", "md-sec-body");
+      bodyEl.innerHTML = window.marked.parse(block.body);
+      sec.append(bodyEl);
+    }
+    for (const child of block.children) sec.append(sectionNode(child));
+    return sec;
+  }
+
+  function copySection(sec) {
+    const block = sectionBlocks.get(sec);
+    if (!block) return;
+    navigator.clipboard?.writeText(block.text).then(
+      () => {
+        toast("success", `Copied “${shorten(block.heading, 40)}”`);
+        sec.classList.remove("copied");
+        void sec.offsetWidth;   // restart the flash when the same block is copied twice
+        sec.classList.add("copied");
+        setTimeout(() => sec.classList.remove("copied"), 600);
+      },
+      () => toast("error", "The browser refused clipboard access"),
+    );
+  }
+
+  $("#result-body").addEventListener("click", (e) => {
+    const target = e.target;
+    if (!(target instanceof Element)) return;
+    if (target.closest("a")) return;   // a link in the notes or the outline is a link first
+    const sec = target.closest(".md-sec.copyable");
+    if (!sec) return;
+    // A click that ends a drag over the text meant to select it, not to copy the block.
+    const sel = window.getSelection();
+    if (sel && !sel.isCollapsed && sel.toString().trim()) return;
+    copySection(sec);
+  });
 
   async function showResult(name) {
     const body = $("#result-body");
@@ -677,14 +1111,14 @@
     try {
       const text = await (await fetch(`/api/final/${encodeURIComponent(name)}`)).text();
       state.resultText = text;
-      if (name.endsWith("srt") || name === "transcript_srt") {
-        body.innerHTML = "";
+      body.innerHTML = "";
+      if (name.endsWith("srt") || name === "transcript_srt" || !window.marked) {
         body.append(el("pre", "", text));
-      } else if (window.marked) {
-        body.innerHTML = window.marked.parse(text);
       } else {
-        body.innerHTML = "";
-        body.append(el("pre", "", text));
+        let n = 0;
+        for (const block of splitSections(text)) {
+          body.append(sectionNode(block, block.level === 2 ? letterFor(n++) : null));
+        }
       }
     } catch (err) {
       body.textContent = `could not read ${name}: ${err}`;
@@ -704,8 +1138,8 @@
       files.append(b);
     }
     // Show notes exist to be pasted somewhere else; do not make that a trip to disk.
-    const copy = el("button", "chip copy", "⧉ Copy");
-    copy.title = "Copy the file shown below";
+    const copy = el("button", "chip copy", "⧉ Copy the file");
+    copy.title = "Copy everything shown below";
     copy.addEventListener("click", () => {
       if (!state.resultText) return;
       navigator.clipboard?.writeText(state.resultText).then(
@@ -722,25 +1156,36 @@
       });
       files.append(p);
     }
-    $("#tab-result").classList.remove("hidden");
+    $("#btn-wrap").classList.remove("hidden");
     showResult(names[0]);
     return true;
   }
 
+  function showWrap(on) {
+    state.wrapOpen = on;
+    $("#wrap").classList.toggle("hidden", !on);
+    if (on) closeOverlay();
+  }
+
   function showDone(msg) {
+    for (const t of document.querySelectorAll("#toasts .toast")) t.remove();
     const body = $("#done-body");
     body.innerHTML = "";
-    if (msg.error) body.append(el("p", "warn", `Wrap-up failed: ${msg.error}`));
+    if (msg.error) body.append(el("p", "warn", `The wrap-up failed: ${msg.error}`));
     body.append(el("p", "", `Duration ${hms(msg.duration_s)} · ${msg.ticks} ticks · $${(msg.cost_usd || 0).toFixed(3)}`));
     if (renderResult(msg.paths, msg.dir)) {
-      const open = el("button", "primary", "Open show notes");
-      open.addEventListener("click", () => { $("#done").close(); showTab("result"); });
+      const open = el("button", "primary", "Open the notes");
+      open.addEventListener("click", () => { $("#done").close(); showWrap(true); });
       body.append(open);
     }
     $("#done").showModal();
   }
 
-  // -------------------------------------------------------------- keyboard
+  // =============================================================== keyboard
+
+  // Lower-case keys that already mean something; a section whose letter is one
+  // of these keeps the capital as its only binding rather than stealing it.
+  const RESERVED_KEYS = new Set(["j", "k", "c", "x", "p", "m", "t", "q", "l", "n", "w", "d"]);
 
   document.addEventListener("keydown", (e) => {
     const target = e.target;
@@ -748,13 +1193,39 @@
     if (document.querySelector("dialog[open]") && e.key !== "?" && e.key !== "Escape") return;
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     const key = e.key;
+
+    // The margin shows a capital and typing that capital always works. The
+    // lower-case letter works too wherever nothing else claims it, so the
+    // central move of this design does not require finding a modifier first.
+    const upper = key.length === 1 ? key.toUpperCase() : "";
+    const freeLower = /^[a-z]$/.test(key) && !RESERVED_KEYS.has(key);
+    if ((/^[A-Z]$/.test(key) || freeLower) && state.letters.has(upper)) {
+      const jump = upper;
+      showWrap(false);
+      jumpTo(jump);
+      e.preventDefault();
+      return;
+    }
+
+    if (key === "Escape") {
+      if (state.wrapOpen) { showWrap(false); e.preventDefault(); }
+      else if (state.overlay) { closeOverlay(); e.preventDefault(); }
+      return;
+    }
     if (key === "j") { moveSelection(1); e.preventDefault(); }
     else if (key === "k") { moveSelection(-1); e.preventDefault(); }
     else if (key === "c" && state.selected) { toggleCovered(state.selected); e.preventDefault(); }
     else if (key === "x" && state.selected) { toggleSkipped(state.selected); e.preventDefault(); }
     else if (key === "p" && state.selected) { togglePin(state.selected); e.preventDefault(); }
     else if (key === "m") { send({ type: "sync_mark" }); e.preventDefault(); }
-    else if (key === "t") { toggleTab("transcript"); e.preventDefault(); }
+    else if (key === "t") { toggleOverlay("transcript"); e.preventDefault(); }
+    else if (key === "q") { toggleOverlay("questions"); e.preventDefault(); }
+    else if (key === "l") { toggleOverlay("mentions"); e.preventDefault(); }
+    else if (key === "n") { toggleOverlay("new"); e.preventDefault(); }
+    else if (key === "w") {
+      if (!$("#btn-wrap").classList.contains("hidden")) showWrap(!state.wrapOpen);
+      e.preventDefault();
+    }
     else if (key === "d") { setDense(!state.dense); e.preventDefault(); }
     else if (key === " ") {
       const status = (state.session && state.session.status) || "idle";
@@ -766,26 +1237,14 @@
     else if (["1", "2", "3"].includes(key)) {
       const sug = (state.session && state.session.suggestions) || {};
       const item = (sug.next || []).find((x) => String(x.rank) === key);
-      if (item) select(item.node_id);
+      if (item) { showWrap(false); select(item.node_id); }
       e.preventDefault();
     }
   });
 
-  // ------------------------------------------------------------------ chrome
-
-  function toggleTab(name) {
-    const active = document.querySelector(".tab.active");
-    showTab(active && active.dataset.tab === name ? "now" : name);
-  }
-
-  function showTab(name) {
-    document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.tab === name));
-    document.querySelectorAll(".panel").forEach((p) => p.classList.toggle("active", p.dataset.panel === name));
-  }
+  // ================================================================= chrome
 
   document.addEventListener("click", (e) => {
-    const tab = e.target.closest(".tab");
-    if (tab) { showTab(tab.dataset.tab); return; }
     const btn = e.target.closest("button[data-action]");
     if (!btn) return;
     const action = btn.dataset.action;
@@ -793,49 +1252,11 @@
     else send({ type: "control", action });
   });
 
-  // ---------------------------------------------------------------- splitter
+  $("#overlay-close").addEventListener("click", closeOverlay);
+  $("#wrap-back").addEventListener("click", () => showWrap(false));
+  $("#btn-wrap").addEventListener("click", () => showWrap(!state.wrapOpen));
 
-  const SIDE_MIN = 260, SIDE_DEFAULT = 380;
-
-  function setSideWidth(px) {
-    const max = Math.max(SIDE_MIN, window.innerWidth - 420);
-    const width = Math.round(Math.min(max, Math.max(SIDE_MIN, px)));
-    document.documentElement.style.setProperty("--side", width + "px");
-    try { localStorage.setItem("lc.side", String(width)); } catch { /* ignore */ }
-  }
-
-  (function initSplitter() {
-    try {
-      const saved = Number(localStorage.getItem("lc.side"));
-      if (saved) setSideWidth(saved);
-    } catch { /* ignore */ }
-
-    const bar = $("#splitter");
-    let dragging = false;
-    bar.addEventListener("pointerdown", (e) => {
-      dragging = true;
-      bar.setPointerCapture(e.pointerId);
-      bar.classList.add("dragging");
-      document.body.classList.add("resizing");
-      e.preventDefault();
-    });
-    bar.addEventListener("pointermove", (e) => {
-      if (dragging) setSideWidth(window.innerWidth - e.clientX);
-    });
-    const end = (e) => {
-      if (!dragging) return;
-      dragging = false;
-      try { bar.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
-      bar.classList.remove("dragging");
-      document.body.classList.remove("resizing");
-      updateEdges();
-    };
-    bar.addEventListener("pointerup", end);
-    bar.addEventListener("pointercancel", end);
-    bar.addEventListener("dblclick", () => { setSideWidth(SIDE_DEFAULT); updateEdges(); });
-  })();
-
-  // ---------------------------------------------------------------- tick settings
+  // ------------------------------------------------------------ tick settings
 
   function showTicks() {
     const llm = state.status.llm || {};
@@ -881,13 +1302,14 @@
     }
     renderChannels(settings.audio.channels);
     renderModelFields();
+    renderTargetField();
     renderOutlineNote();
     fillModelList({ models: settings.llm.known_models });
   }
 
   function sourceOptions() {
     const audio = (settings && settings.audio) || { devices: [], audiotee: [] };
-    const out = [[AUTO_SOURCE, "Auto — whichever mic is plugged in"]];
+    const out = [[AUTO_SOURCE, "Auto: whichever mic is plugged in"]];
     for (const d of audio.devices || []) {
       const notes = [`${d.channels}ch`, `${d.samplerate} Hz`];
       if (d.is_default) notes.push("system default");
@@ -895,7 +1317,7 @@
       out.push([`device:${d.name}`, `${d.name} · ${notes.join(" · ")}`]);
     }
     for (const a of audio.audiotee || []) {
-      out.push([`audiotee:${a.name}`, `${a.name} — system audio (AudioTee)`]);
+      out.push([`audiotee:${a.name}`, `${a.name}, system audio via AudioTee`]);
     }
     return out;
   }
@@ -927,7 +1349,7 @@
     // quietly rewrite it.
     const known = options.some(([value]) => value === ch.source);
     if (ch.source && !known) {
-      const opt = el("option", "", `${ch.source} — not connected`);
+      const opt = el("option", "", `${ch.source} (not connected)`);
       opt.value = ch.source;
       select.insertBefore(opt, select.firstChild);
     }
@@ -998,7 +1420,7 @@
         "wrong for an episode.");
     }
     if (!audio.audiotee_available && chosen.some((c) => c.startsWith("audiotee:"))) {
-      lines.push("The audiotee helper is not built — run ./helpers/audiotee/build.sh.");
+      lines.push("The audiotee helper is not built. Run ./helpers/audiotee/build.sh.");
     }
     if (!lines.length && (settings || {}).session_status === "running") {
       lines.push("Applying reopens the microphones; the clock and the transcript carry on.");
@@ -1018,7 +1440,7 @@
       const bits = [engine.key];
       if (engine.note) bits.push(engine.note);
       else if (engine.can_force_language) bits.push("can lock the language");
-      const opt = el("option", "", bits.join(" — "));
+      const opt = el("option", "", bits.join(" · "));
       opt.value = engine.key;
       opt.disabled = !engine.installed;
       select.append(opt);
@@ -1042,11 +1464,17 @@
     }
   }
 
+  function renderTargetField() {
+    // The session owns it, not /api/settings: it changes mid-session like the clock.
+    const target = (state.session || {}).target_minutes;
+    $("#settings-target").value = target == null ? "" : String(target);
+  }
+
   function renderOutlineNote() {
     const outline = settings.outline || {};
     $("#settings-outline-note").textContent = outline.path
       ? `${outline.items} item${outline.items === 1 ? "" : "s"} from ${outline.path}`
-      : "No outline loaded. The map stays empty and the model has nothing to track.";
+      : "No outline loaded. The score stays empty and the model has nothing to track.";
   }
 
   function applySettings() {
@@ -1060,6 +1488,10 @@
       stt_engine: $("#settings-stt-engine").value,
       stt_model: $("#settings-stt-model").value,
     });
+    const raw = $("#settings-target").value.trim();
+    const target = raw === "" ? null : Number(raw);
+    if (target !== null && !(target > 0)) { toast("error", "A target length is a number of minutes"); return; }
+    send({ type: "set_target", target_minutes: target });
     $("#settings").close();
   }
 
@@ -1074,7 +1506,7 @@
     renderAudioNote();
   });
 
-  // ----------------------------------------------------------------- outline
+  // ================================================================= outline
 
   async function uploadOutline(file) {
     if (!file) return;
@@ -1113,8 +1545,8 @@
   $("#settings-pick-outline").addEventListener("click", pickOutline);
 
   (function initOutlineDrop() {
-    const pane = $("#outline-pane");
-    const hint = $("#outline-drop");
+    const pane = $("#score-pane");
+    const hint = $("#score-drop");
     let depth = 0;   // dragenter/dragleave fire per child, so count instead of toggling
 
     const hasFile = (e) => Array.from(e.dataTransfer?.types || []).includes("Files");
@@ -1142,10 +1574,10 @@
     }
   })();
 
+  // =================================================================== boot
+
   $("#btn-help").addEventListener("click", () => $("#help").showModal());
   $("#llm-status").addEventListener("click", showTicks);
-  $("#btn-density").addEventListener("click", () => setDense(!state.dense));
-  setDense(state.dense);
   $("#cost-status").addEventListener("click", showUsage);
   $("#lang-status").addEventListener("click", showLanguage);
   $("#btn-theme").addEventListener("click", () => {
@@ -1160,7 +1592,7 @@
   } catch { /* ignore */ }
 
   let scrollTimer = null;
-  $("#outline").addEventListener("scroll", () => {
+  $("#score").addEventListener("scroll", () => {
     if (scrollTimer) return;
     scrollTimer = setTimeout(() => { scrollTimer = null; updateEdges(); }, 150);
   });

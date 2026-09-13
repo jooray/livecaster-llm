@@ -179,11 +179,21 @@ def create_session(
     stem = slug or (outline_file.stem if outline_file else "session")
     day = datetime.now(UTC).astimezone().strftime("%Y-%m-%d")
     root = Path(base_dir or config.session.dir)
-    directory = root / f"{day}_{slugify(stem)}"
-    n = 2
-    while directory.exists():
-        directory = root / f"{day}_{slugify(stem)}-{n}"
-        n += 1
+    # Claim the directory by creating it, rather than testing and then creating:
+    # two sessions started in the same second both pass an `exists()` check, both
+    # pick the same name, and the second one dies renaming session.json.tmp over
+    # a file the first has already moved.
+    root.mkdir(parents=True, exist_ok=True)
+    base = f"{day}_{slugify(stem)}"
+    n = 1
+    while True:
+        directory = root / (base if n == 1 else f"{base}-{n}")
+        try:
+            directory.mkdir()
+        except FileExistsError:
+            n += 1
+            continue
+        break
     session = Session(
         id=directory.name,
         outline_path=str(outline_file.resolve()) if outline_file else "",
@@ -192,6 +202,7 @@ def create_session(
         outline=outline.nodes,
         outline_next_id=outline.next_id,
         language=None if config.stt.language == "auto" else config.stt.language,
+        target_minutes=config.session.target_minutes,
     )
     store = SessionStore(session, directory, outline, config)
     if outline_file:

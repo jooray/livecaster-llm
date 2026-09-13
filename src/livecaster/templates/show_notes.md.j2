@@ -30,6 +30,14 @@ _{{ duration }}{% if sync_offset %} · timestamps relative to sync mark at {{ sy
 —
 {% endif %}
 
+{% if missed_must %}
+## {{ label('missed_must') }}
+
+{% for m in missed_must %}
+- {{ m.text }}{% if m.touched %} — touched on, never answered{% endif +%}
+{% endfor %}
+
+{% endif %}
 ## {{ label('titles') }}
 
 {% for t in analysis.titles %}

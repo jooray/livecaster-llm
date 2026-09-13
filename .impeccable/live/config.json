@@ -1,0 +1,6 @@
+{
+  "files": ["src/livecaster/ui/index.html"],
+  "insertBefore": "</body>",
+  "commentSyntax": "html",
+  "cspChecked": true
+}

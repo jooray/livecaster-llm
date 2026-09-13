@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Livecaster — the apparatus</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@400;500;600;700&family=Spectral:ital,wght@0,400;1,400&display=swap" rel="stylesheet">
+<style>
+/* ------------------------------------------------------------------
+   SITE STRUCTURE B — the critical edition.
+
+   A scholarly edition prints the text on the page and the apparatus
+   beneath or beside it: every reading, every source, every doubt, in
+   smaller type, always visible. Nobody has to trust the editor.
+
+   For a product whose whole voice is measured numbers and named limits,
+   the apparatus IS the pitch. Every claim on the left carries its
+   evidence on the right — the measurement, the session it came from, or
+   the caveat that undercuts it. Nothing is hidden behind a "learn more".
+   ------------------------------------------------------------------ */
+
+:root {
+  --paper:   #f4f1e8;
+  --raised:  #fffdf7;
+  --ink:     #16171a;
+  --quiet:   #585d66;
+  --staff:   #c3bfb1;
+  --rest:    #6f747c;
+  --pencil:  #c0331a;
+  --mark:    #1f55b8;
+  --sans: "Libre Franklin", -apple-system, BlinkMacSystemFont, sans-serif;
+  --cue:  "Spectral", Georgia, serif;
+  color-scheme: light;
+  accent-color: var(--pencil);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #0e0f11; --raised: #16181b; --ink: #f2efe6; --quiet: #9498a1;
+    --staff: #4c5058; --rest: #7d838d; --pencil: #e4573a; --mark: #79a8e8;
+    color-scheme: dark;
+  }
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--paper); }
+body {
+  color: var(--ink); font-family: var(--sans);
+  font-size: 19px; line-height: 1.55; -webkit-font-smoothing: antialiased;
+}
+::selection { background: var(--pencil); color: #fff; }
+:focus-visible { outline: 2px solid var(--pencil); outline-offset: 3px; }
+img { max-width: 100%; height: auto; display: block; }
+.num { font-variant-numeric: tabular-nums; }
+
+.wrap { max-width: 1140px; margin: 0 auto; padding: 0 clamp(18px, 4vw, 40px); }
+
+/* Text left, apparatus right. The apparatus never collapses away; at
+   narrow widths it sits under its own claim, still attached to it. */
+.edition { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 0 44px; }
+.app-col { border-left: 1px solid var(--staff); padding-left: 26px; }
+
+header.wrap { padding-block: clamp(38px, 7vh, 78px) 34px; }
+h1 {
+  margin: 0 0 16px; max-width: 15ch;
+  font-size: clamp(44px, 6.6vw, 80px); line-height: 1;
+  letter-spacing: -.035em; font-weight: 700; text-wrap: balance;
+}
+.strap { font-family: var(--cue); font-style: italic; font-size: 24px; color: var(--quiet); margin: 0 0 24px; }
+.lede { max-width: 54ch; font-size: 21px; margin: 0 0 26px; }
+.actions { display: flex; flex-wrap: wrap; gap: 12px; }
+.btn {
+  display: inline-block; text-decoration: none;
+  font-size: 18px; font-weight: 600; padding: 11px 22px;
+  border: 1px solid var(--ink); color: var(--paper); background: var(--ink);
+}
+.btn.ghost { background: transparent; color: var(--ink); }
+.btn:hover { border-color: var(--pencil); background: var(--pencil); color: #fff; }
+
+/* --------------------------------------------------------------- entries */
+
+.entry { padding: 30px 0; border-top: 1px solid var(--staff); }
+.entry h2 {
+  margin: 0 0 10px; font-size: clamp(24px, 2.8vw, 31px);
+  letter-spacing: -.022em; font-weight: 700; max-width: 24ch; text-wrap: balance;
+}
+.entry p { margin: 0 0 11px; max-width: 60ch; }
+.entry p.quiet { color: var(--quiet); }
+
+/* The apparatus: smaller, keyed, and never flattering. */
+.app-col .key {
+  display: block; font-size: 15px; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--rest); margin-bottom: 14px;
+}
+.app-col dl { margin: 0; font-size: 16px; line-height: 1.5; }
+.app-col dt { color: var(--ink); font-weight: 600; margin-top: 13px; }
+.app-col dt:first-child { margin-top: 0; }
+.app-col dd { margin: 2px 0 0; color: var(--quiet); }
+.app-col .fig { color: var(--pencil); font-weight: 600; font-variant-numeric: tabular-nums; }
+.app-col .caveat { color: var(--quiet); font-family: var(--cue); font-style: italic; }
+.app-col .src { color: var(--rest); font-size: 15px; }
+
+figure { margin: 20px 0 0; }
+figure img { border: 1px solid var(--staff); }
+figcaption { margin-top: 9px; font-size: 16px; color: var(--rest); max-width: 58ch; }
+
+table { border-collapse: collapse; width: 100%; max-width: 60ch; margin: 14px 0 0; font-size: 17px; }
+th, td { text-align: left; padding: 7px 14px 7px 0; border-bottom: 1px solid color-mix(in srgb, var(--staff) 55%, transparent); }
+th { color: var(--rest); font-weight: 600; font-size: 15px; letter-spacing: .05em; text-transform: uppercase; }
+td.n { font-variant-numeric: tabular-nums; text-align: right; }
+
+pre {
+  margin: 14px 0 0; padding: 15px 17px; overflow-x: auto;
+  background: var(--raised); border: 1px solid var(--staff);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 16px; line-height: 1.6;
+}
+pre .c { color: var(--rest); }
+
+footer.wrap {
+  margin-top: 30px; padding-block: 22px 50px; border-top: 1px solid var(--staff);
+  color: var(--rest); font-size: 16px; display: flex; flex-wrap: wrap; gap: 8px 26px;
+}
+footer a { color: var(--quiet); }
+
+@media (max-width: 900px) {
+  .edition { grid-template-columns: 1fr; gap: 0; }
+  .app-col { border-left: 0; border-top: 1px solid var(--staff); padding-left: 0; padding-top: 16px; margin-top: 18px; }
+}
+</style>
+</head>
+<body>
+
+<header class="wrap">
+  <h1>Every number on this page was measured.</h1>
+  <p class="strap">local transcription, remote reasoning</p>
+  <p class="lede">A live co-pilot for podcast hosts. It transcribes on your own machine while you
+    record and keeps your outline as a map of the episode rather than a script. What it claims, it
+    claims from real sessions — and what it cannot do is on this page too.</p>
+  <div class="actions">
+    <a class="btn" href="https://youtu.be/rDJfGJWyTkM">Watch a session</a>
+    <a class="btn ghost" href="https://github.com/jooray/livecaster-llm">Source on GitHub</a>
+  </div>
+</header>
+
+<main class="wrap edition">
+
+  <div>
+    <section class="entry">
+      <h2>The outline becomes a map, not a script</h2>
+      <p>Livecaster reads the Markdown you already write and follows the conversation against it.
+        Covered lines take a single cut with the time beside them; a section you have finished folds
+        to one line; the one topic that just became reachable is set large, with the reason it lit up
+        and a sentence you could use to get there.</p>
+      <p class="quiet">It never autoscrolls, never advances on your behalf, and never reorders your
+        document. Every state it proposes can be overridden with a click or a key.</p>
+      <figure>
+        <img src="app-light.png" alt="Livecaster showing an outline as a score: sections carry lettered marks in the margin, covered lines are struck through with times, and one topic is set large in red.">
+        <figcaption>Forty-one minutes in. Type the letter in the margin to jump to that section.</figcaption>
+      </figure>
+    </section>
+
+    <section class="entry">
+      <h2>Audio never leaves the machine</h2>
+      <p>Transcription runs locally and the WAV backups are written beside the session. What crosses
+        the network is the outline text, the transcript text, and the state derived from them. The
+        provider's injected system prompt is disabled and web search is off.</p>
+      <p class="quiet">The outline file itself is opened for reading and never for writing. Everything
+        the app produces goes into a session directory of its own.</p>
+    </section>
+
+    <section class="entry">
+      <h2>It costs about fifty cents for a two-hour episode</h2>
+      <p>A tick every twenty-five seconds is cheap because most of each prompt comes back from the
+        provider's cache. The wrap-up at the end is the expensive half, and its price is set by the
+        length of the notes it writes rather than the transcript it reads.</p>
+      <table>
+        <tr><th>Engine</th><th>Real-time factor</th><th>Per utterance</th></tr>
+        <tr><td>parakeet-mlx (default)</td><td class="n">0.055</td><td class="n">~0.25 s</td></tr>
+        <tr><td>whisper-mlx</td><td class="n">0.62</td><td class="n">2.6 s</td></tr>
+        <tr><td>faster-whisper</td><td class="n">3.68</td><td class="n">15 s</td></tr>
+      </table>
+    </section>
+
+    <section class="entry">
+      <h2>What you get when you press Finish</h2>
+      <p>Notes in the language of the podcast: a summary, what was covered and what was not, chapters
+        with timestamps, titles and descriptions to choose from, a social post, quotes, and mentions
+        with links — or an explicit link TODO where it could not find one.</p>
+      <p class="quiet">Click any block to copy it, without its heading, ready to paste.</p>
+    </section>
+
+    <section class="entry">
+      <h2>Running it</h2>
+      <pre><span class="c"># macOS on Apple Silicon; --extra linux or --extra cuda elsewhere</span>
+uv sync --extra mac
+export VENICE_API_KEY=...
+uv run livecaster check
+uv run livecaster run outlines/my-episode.md</pre>
+    </section>
+  </div>
+
+  <aside class="app-col">
+    <span class="key">Apparatus</span>
+    <dl>
+      <dt>Where the map comes from</dt>
+      <dd>A tick every ~25 s sends the recent transcript and the state of the outline to a fast model.
+        <span class="src">deepseek-v4-flash-0731-fast, ~9 s to answer</span></dd>
+
+      <dt>Cost per tick</dt>
+      <dd><span class="fig">$0.0009</span> averaged over real sessions.</dd>
+
+      <dt>Cost of the wrap-up</dt>
+      <dd><span class="fig">$0.14 – 0.20</span> on short episodes.
+        <span class="src">claude-sonnet-5 through Venice</span></dd>
+
+      <dt>A whole live session</dt>
+      <dd><span class="fig">$0.17</span> for six minutes, eleven ticks, nothing failed.</dd>
+
+      <dt>Two-hour episode</dt>
+      <dd><span class="fig">about $0.50</span>. The target was under a dollar.</dd>
+
+      <dt>Language</dt>
+      <dd class="caveat">Parakeet detects the language itself and cannot be told which one to use. On
+        poor audio it drifts — a Slovak recording through a Bluetooth headset came back partly in
+        Polish. Locking the language in the UI fixes the notes, not the words.</dd>
+
+      <dt>Microphones</dt>
+      <dd class="caveat">Opening a Bluetooth headset's microphone drops the whole link to 16 kHz mono.
+        That is macOS, not Livecaster.</dd>
+
+      <dt>Speakers</dt>
+      <dd class="caveat">One shared microphone means no speaker labels, and the exports handle their
+        absence rather than guessing.</dd>
+
+      <dt>System audio on macOS</dt>
+      <dd class="caveat">The permission is granted to your terminal app, and some terminals never raise
+        the prompt. BlackHole is the documented fallback.</dd>
+
+      <dt>What it is not</dt>
+      <dd>Not a teleprompter, not a recorder of record, and not a cloud transcription service.</dd>
+
+      <dt>Requirements</dt>
+      <dd>Python 3.12 and uv. macOS or Linux. First run downloads ~2.4 GB of weights.
+        <span class="src">a Venice API key, prepaid</span></dd>
+
+      <dt>The demo</dt>
+      <dd>Recorded with Livecaster running on itself, in Slovak. The outline it follows is in the
+        repository, with an English translation beside it.</dd>
+    </dl>
+  </aside>
+
+</main>
+
+<footer class="wrap">
+  <span><a href="https://github.com/jooray/livecaster-llm">github.com/jooray/livecaster-llm</a></span>
+  <span><a href="https://youtu.be/rDJfGJWyTkM">the demo, in Slovak</a></span>
+</footer>
+
+</body>
+</html>

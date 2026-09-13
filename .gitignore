@@ -16,3 +16,9 @@ livecaster.toml
 
 # Working outlines are personal: episode plans, guest notes, private context.
 outlines/
+
+# Impeccable live-mode session journals are local state, not project source.
+.impeccable/live/sessions/
+.impeccable/questions/
+.impeccable/mocks/decision/
+.impeccable/review/

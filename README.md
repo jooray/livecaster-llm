@@ -74,6 +74,11 @@ uv run livecaster run outlines/my-episode.md --mode live
 `outlines/` is git-ignored, because an episode plan usually has guest notes and private context in
 it. Any Markdown works: headings, bullets, nested bullets, `Question:` lines, whole paragraphs.
 
+**Bold a line and it becomes a must-ask.** `**Closing question:** what did we never get to?` is the
+one you do not want to reach the end without asking, and the show notes say so if you did. A whole
+bold line counts too. A bold run used to title a bullet — `- **Psychedelics vs. breath** — how do
+they compare?` — deliberately does not, or every titled bullet would be urgent.
+
 You can also start with nothing — `uv run livecaster run` — and drop the Markdown file onto the map
 once the UI is open, or pick it under the cog. The file is copied into the session directory and
 watched from there, so you can keep editing it while you record.
@@ -184,7 +189,7 @@ relative to that mark.
 
 | Command | What it does |
 |---|---|
-| `livecaster run [outline.md] [--mode live\|remote] [--resume DIR] [--slug S] [--no-preflight] [--set k=v]` | Start a session. Without an outline, drop one on the map. |
+| `livecaster run [outline.md] [--mode live\|remote] [--resume DIR] [--slug S] [--no-preflight] [--lan] [--set k=v]` | Start a session. Without an outline, drop one on the map. |
 | `livecaster devices` | List input devices (and AudioTee candidate processes on macOS). |
 | `livecaster replay <file\|dir> [--outline M] [--speed N] [--mock-llm] [--serve]` | Run the pipeline from a file. The source can also be given as `--transcript`, `--wav` or `--session`. |
 | `livecaster wrapup <session_dir> [--model M] [--resolve-links]` | Re-run the wrap-up on an existing session. |
@@ -234,6 +239,9 @@ episodes without a restart:
 - **Models.** The tick model, the wrap-up model and the speech engine. The LLM half lands on the
   next tick; a new speech engine loads at the next Start, because the worker thread owns a loaded
   model. The suggestion list is the provider's own, fetched when the dialog opens.
+- **Episode.** A target length in minutes. Leave it empty and the app just shows the clock; set it
+  and the map can weigh what is still unasked against the time left. `session.target_minutes = 60`
+  in the file makes it the default.
 - **Outline.** Load a different Markdown file. Dropping one anywhere on the map does the same.
 
 None of it is written back to `livecaster.toml` — the file keeps your comments, and the dialog is
@@ -246,13 +254,24 @@ than refusing to start.
 
 ## Keyboard
 
-`j`/`k` move the selection · `c` covered · `x` skipped · `p` pin · `1`/`2`/`3` jump to a hot item ·
-`m` sync mark · `t` toggle transcript · `d` compact/full text · `space` pause/resume · `,` settings ·
-`?` help.
+`A`…`Z` jump to the system with that letter in the margin · `1`/`2`/`3` go to a suggestion by rank ·
+`j`/`k` move the selection · `c` covered · `x` skipped · `p` pin · `t` transcript · `q` questions ·
+`l` links promised · `n` new topics · `w` the notes · `m` sync mark · `d` compact/full ·
+`space` pause/resume · `,` settings · `?` help.
 
-The live surface is deliberately terse: the map marks topics, the **Now** panel shows one line and
-three labels of at most five words each. Click an item, or press `d`, to see the model's reason
-and its suggested segue. Nothing there is meant to be read in full while you are talking.
+The outline is drawn as a score. Each section is a *system* with a lettered rehearsal mark in the
+margin, and that letter is how you jump there. An orchestra re-enters at any bar for the same reason
+you need to when a guest wanders. Covered lines take a single engraver's cut with the time beside
+them; a section you have finished rests to one line, in place, so the plan visibly shrinks as you
+work. Click it to open it back up.
+
+The one topic that just became reachable is set as the passage to play now, in pencil red, with the
+model's reason and a sentence you could use to get there. A line you **bolded** in the outline is a
+must-ask and carries a marcato accent until you have answered it.
+
+Nothing else sits on the screen. The transcript, the questions, the links you promised and the topics
+that were not in your plan are keys that overlay and leave again. None of it is meant to be read in
+full while you are talking.
 
 ## Privacy and cost
 
