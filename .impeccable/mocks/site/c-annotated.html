@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Livecaster — the annotated page</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@400;500;600;700&family=Spectral:ital,wght@0,400;1,400&display=swap" rel="stylesheet">
+<style>
+/* ------------------------------------------------------------------
+   SITE STRUCTURE C — the page is the thing it describes.
+
+   The page is laid out as an outline being worked through: lettered
+   marks in the margin, sections that strike themselves through as you
+   read past them, and one line that lights up with a cue note — the
+   product demonstrating itself rather than describing itself.
+
+   The risk, stated plainly: a page that performs a trick can read as a
+   trick. The guard is that every mark means something true about the
+   section it is on, and the page is completely legible with the motion
+   turned off.
+   ------------------------------------------------------------------ */
+
+:root {
+  --paper:   #f4f1e8;
+  --raised:  #fffdf7;
+  --ink:     #16171a;
+  --quiet:   #585d66;
+  --staff:   #c3bfb1;
+  --rest:    #6f747c;
+  --pencil:  #c0331a;
+  --mark:    #1f55b8;
+  --sans: "Libre Franklin", -apple-system, BlinkMacSystemFont, sans-serif;
+  --cue:  "Spectral", Georgia, serif;
+  color-scheme: light;
+  accent-color: var(--pencil);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #0e0f11; --raised: #16181b; --ink: #f2efe6; --quiet: #9498a1;
+    --staff: #4c5058; --rest: #7d838d; --pencil: #e4573a; --mark: #79a8e8;
+    color-scheme: dark;
+  }
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--paper); }
+body {
+  color: var(--ink); font-family: var(--sans);
+  font-size: 19px; line-height: 1.55; -webkit-font-smoothing: antialiased;
+}
+::selection { background: var(--pencil); color: #fff; }
+:focus-visible { outline: 2px solid var(--pencil); outline-offset: 3px; }
+img { max-width: 100%; height: auto; display: block; }
+.num { font-variant-numeric: tabular-nums; }
+
+.wrap { max-width: 1080px; margin: 0 auto; padding: 0 clamp(18px, 4vw, 40px); }
+
+header.wrap { padding-block: clamp(40px, 8vh, 92px) 20px; }
+h1 {
+  margin: 0 0 16px; max-width: 16ch;
+  font-size: clamp(44px, 7vw, 86px); line-height: .99;
+  letter-spacing: -.035em; font-weight: 700; text-wrap: balance;
+}
+.strap { font-family: var(--cue); font-style: italic; font-size: 24px; color: var(--quiet); margin: 0 0 24px; }
+.lede { max-width: 56ch; font-size: 21px; margin: 0 0 26px; }
+.actions { display: flex; flex-wrap: wrap; gap: 12px; }
+.btn {
+  display: inline-block; text-decoration: none;
+  font-size: 18px; font-weight: 600; padding: 11px 22px;
+  border: 1px solid var(--ink); color: var(--paper); background: var(--ink);
+}
+.btn.ghost { background: transparent; color: var(--ink); }
+.btn:hover { border-color: var(--pencil); background: var(--pencil); color: #fff; }
+
+.reading {
+  margin-top: 30px; padding-top: 14px; border-top: 1px solid var(--staff);
+  color: var(--rest); font-size: 16px; font-family: var(--cue); font-style: italic;
+}
+
+/* ------------------------------------------------------- systems as sections */
+
+.system {
+  display: grid; grid-template-columns: 78px minmax(0, 1fr);
+  gap: 0 28px; padding: 34px 0 0;
+}
+.system > .margin { position: relative; }
+.rmark {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 42px; height: 42px; padding: 0 8px;
+  border: 2px solid var(--ink); color: var(--ink);
+  font-size: 23px; font-weight: 700;
+}
+.system > .margin::after {
+  content: ""; position: absolute; left: 21px; top: 50px; bottom: 8px; width: 1px; background: var(--staff);
+}
+.system h2 {
+  margin: 0 0 12px; font-size: clamp(27px, 3.2vw, 37px);
+  letter-spacing: -.024em; font-weight: 700; max-width: 22ch; text-wrap: balance;
+}
+.system p { margin: 0 0 12px; max-width: 62ch; }
+.system p.quiet { color: var(--quiet); }
+
+/* A section you have read past is behind you, and says so. */
+.system.done .rmark { border-width: 1px; border-color: var(--rest); color: var(--rest); min-width: 36px; height: 36px; font-size: 20px; font-weight: 500; }
+.system.done h2 { color: var(--quiet); }
+.system.done h2 .cut { text-decoration: line-through; text-decoration-thickness: 1px; text-decoration-color: var(--staff); }
+.system.done > .margin::after { background: color-mix(in srgb, var(--staff) 50%, transparent); }
+.system .at {
+  font-size: 16px; color: var(--rest); font-variant-numeric: tabular-nums;
+  margin-left: 12px; font-weight: 400; letter-spacing: 0; white-space: nowrap;
+}
+
+/* The one line currently lit, with its cue note, exactly as the app does it. */
+.system.live .rmark { border-color: var(--pencil); color: var(--pencil); }
+.system.live > .margin::after { background: var(--pencil); }
+.system.live h2 { color: var(--pencil); }
+.cue {
+  font-family: var(--cue); font-style: italic; font-size: 19px; line-height: 1.5;
+  color: var(--quiet); border-left: 1px solid var(--pencil);
+  padding-left: 16px; margin: 0 0 12px; max-width: 56ch;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .system { transition: opacity .35s ease-out; }
+}
+
+figure { margin: 20px 0 0; }
+figure img { border: 1px solid var(--staff); }
+figcaption { margin-top: 9px; font-size: 16px; color: var(--rest); max-width: 60ch; }
+
+.rows { margin: 6px 0 0; }
+.row {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 24px; align-items: baseline;
+  padding: 10px 0; border-bottom: 1px solid color-mix(in srgb, var(--staff) 55%, transparent); max-width: 62ch;
+}
+.row .v { color: var(--pencil); font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.row .src { display: block; font-size: 15px; color: var(--rest); }
+
+pre {
+  margin: 12px 0 0; padding: 15px 17px; overflow-x: auto; max-width: 62ch;
+  background: var(--raised); border: 1px solid var(--staff);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 16px; line-height: 1.6;
+}
+pre .c { color: var(--rest); }
+ul.limits { margin: 6px 0 0; padding-left: 20px; color: var(--quiet); max-width: 62ch; }
+ul.limits li { margin-bottom: 7px; }
+
+footer.wrap {
+  margin-top: 44px; padding-block: 22px 50px; border-top: 1px solid var(--staff);
+  color: var(--rest); font-size: 16px; display: flex; flex-wrap: wrap; gap: 8px 26px;
+}
+footer a { color: var(--quiet); }
+
+@media (max-width: 720px) {
+  .system { grid-template-columns: 46px 1fr; gap: 0 14px; }
+  .system > .margin::after { display: none; }
+  .rmark { min-width: 34px; height: 34px; font-size: 19px; }
+}
+</style>
+</head>
+<body>
+
+<header class="wrap">
+  <h1>This page is an outline. Watch what happens to it.</h1>
+  <p class="strap">local transcription, remote reasoning</p>
+  <p class="lede">Livecaster keeps your episode plan as a live map while you record. Read down this
+    page and it behaves the way your outline does during a session: what is behind you gets struck
+    through, and what matters right now is the one thing in red.</p>
+  <div class="actions">
+    <a class="btn" href="https://youtu.be/rDJfGJWyTkM">Watch a session</a>
+    <a class="btn ghost" href="https://github.com/jooray/livecaster-llm">Source on GitHub</a>
+  </div>
+  <p class="reading">macOS and Linux · transcription on your machine · about $0.50 for two hours ·
+    your outline file is never modified</p>
+</header>
+
+<main class="wrap">
+
+  <section class="system" id="s-a">
+    <div class="margin"><span class="rmark">A</span></div>
+    <div>
+      <h2><span class="cut">What goes wrong halfway through</span><span class="at">covered</span></h2>
+      <p>You write an outline for every interview. Forty minutes in you have lost track of what you
+        already covered, and you find out weeks later in the edit — either you asked something that
+        was already answered, or you forgot the one question you actually cared about.</p>
+      <p class="quiet">Paper notes do not update themselves, and a second screen full of text is worse
+        than nothing when you are the one talking.</p>
+    </div>
+  </section>
+
+  <section class="system" id="s-b">
+    <div class="margin"><span class="rmark">B</span></div>
+    <div>
+      <h2><span class="cut">The outline is the whole interface</span><span class="at">covered</span></h2>
+      <p>Whatever your plan already looks like — headings, bullets, nested bullets, question lines,
+        whole paragraphs — becomes a map. Covered lines take a single cut with the time beside them.
+        A section you have finished folds to one line, in place, so what is left is what you see.</p>
+      <p class="quiet">Nothing autoscrolls, nothing advances on your behalf, and nothing reorders your
+        document. Bold a line and it stays marked until you have answered it.</p>
+      <figure>
+        <img src="app-light.png" alt="Livecaster showing an outline as a score: sections carry lettered marks in the margin, covered lines are struck through with times, and one topic is set large in red.">
+        <figcaption>Type the letter in the margin to jump to that section — the same idea as the marks
+          down the left of this page.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="system live" id="s-c">
+    <div class="margin"><span class="rmark">C</span></div>
+    <div>
+      <h2>Something three sections away just became reachable</h2>
+      <p class="cue">“You mentioned you record on a headset — that is actually the thing that breaks
+        this…”</p>
+      <p>Your guest wanders. A topic you had not reached yet lights up with the reason it lit up and a
+        sentence you could use to get there from wherever the conversation actually is. You take it or
+        you ignore it; the app never decides.</p>
+    </div>
+  </section>
+
+  <section class="system" id="s-d">
+    <div class="margin"><span class="rmark">D</span></div>
+    <div>
+      <h2>What you get when you press Finish</h2>
+      <p>A slower model reads the whole transcript and writes the notes in the language of the podcast:
+        a summary, what was covered and what was not, chapters with timestamps, titles and descriptions
+        to choose from, a social post, quotes, and mentions with links — or an explicit link TODO where
+        it could not find one, because it says so instead of inventing a URL.</p>
+      <p class="quiet">Click any block to copy it, without its heading, ready to paste.</p>
+    </div>
+  </section>
+
+  <section class="system" id="s-e">
+    <div class="margin"><span class="rmark">E</span></div>
+    <div>
+      <h2>Privacy, and what it costs</h2>
+      <p>Audio never leaves the machine. Transcription runs locally and the WAV backups are written
+        beside the session. What crosses the network is the outline text, the transcript text, and the
+        state derived from them.</p>
+      <div class="rows">
+        <div class="row"><span>One tick, every twenty-five seconds<span class="src">most of each prompt comes back from the cache</span></span><span class="v">$0.0009</span></div>
+        <div class="row"><span>The wrap-up at the end<span class="src">set by the notes it writes, not the transcript it reads</span></span><span class="v">$0.14–0.20</span></div>
+        <div class="row"><span>A whole six-minute live session<span class="src">eleven ticks, nothing failed</span></span><span class="v">$0.17</span></div>
+        <div class="row"><span>A two-hour episode</span><span class="v">about $0.50</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="system" id="s-f">
+    <div class="margin"><span class="rmark">F</span></div>
+    <div>
+      <h2>Before you try it</h2>
+      <ul class="limits">
+        <li>Parakeet detects the language itself and cannot be told which one to use. You can lock it
+          in the UI, or switch to Whisper, which honours it at ten times the latency.</li>
+        <li>Opening a Bluetooth headset's microphone drops the whole link to 16 kHz mono. That is
+          macOS, not Livecaster.</li>
+        <li>With one shared microphone there are no speaker labels, and the app does not pretend
+          otherwise.</li>
+        <li>On macOS the system-audio permission goes to your terminal app, and some terminals never
+          raise the prompt. BlackHole is the documented fallback.</li>
+      </ul>
+      <pre><span class="c"># macOS on Apple Silicon; --extra linux or --extra cuda elsewhere</span>
+uv sync --extra mac
+export VENICE_API_KEY=...
+uv run livecaster check
+uv run livecaster run outlines/my-episode.md</pre>
+    </div>
+  </section>
+
+</main>
+
+<footer class="wrap">
+  <span><a href="https://github.com/jooray/livecaster-llm">github.com/jooray/livecaster-llm</a></span>
+  <span><a href="https://youtu.be/rDJfGJWyTkM">the demo, in Slovak</a></span>
+</footer>
+
+<script>
+// The page marks itself up as you read past a section: the same three states
+// the app uses, driven by nothing more than where you are on the page. With
+// reduced motion, or without JS, every section simply reads as itself.
+(() => {
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const systems = [...document.querySelectorAll(".system")];
+  for (const s of systems) { s.classList.remove("done", "live"); }
+
+  const mark = () => {
+    const line = window.innerHeight * 0.42;
+    let live = null;
+    for (const s of systems) {
+      const r = s.getBoundingClientRect();
+      if (r.top <= line && r.bottom > line) live = s;
+    }
+    for (const s of systems) {
+      const r = s.getBoundingClientRect();
+      s.classList.toggle("live", s === live);
+      s.classList.toggle("done", s !== live && r.bottom <= line);
+      const at = s.querySelector(".at");
+      if (at) at.textContent = s.classList.contains("done") ? "covered" : "";
+    }
+  };
+  addEventListener("scroll", mark, { passive: true });
+  addEventListener("resize", mark);
+  mark();
+})();
+</script>
+</body>
+</html>
