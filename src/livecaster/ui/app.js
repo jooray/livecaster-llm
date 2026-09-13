@@ -26,6 +26,8 @@
     connected: false,
     resultText: "",
     overlay: null,             // "transcript" | "questions" | "mentions" | "new"
+    llmFails: 0,               // consecutive failed ticks
+    lastTickAt: null,          // clock of the last tick that landed
     wrapOpen: false,
     openRest: new Set(),       // rested systems the host has opened back up
     // Live, the host reads with one eye. Everything the model says beyond the
@@ -72,6 +74,17 @@
   }
 
   const isOpen = (st) => !st || (st.status !== "covered" && st.status !== "skipped");
+
+  // Drawn, not typed. A marcato set as U+2227 in a text face is a caret pointing
+  // at nothing to anyone who does not read music, and invisible at two metres.
+  const MARCATO =
+    '<svg viewBox="0 0 16 12" width="16" height="12" aria-hidden="true" focusable="false">' +
+    '<path d="M1.5 10.5 8 2l6.5 8.5" fill="none" stroke="currentColor" ' +
+    'stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const PINNED =
+    '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false">' +
+    '<path d="M3 8.6 6.4 12 13 3.8" fill="none" stroke="currentColor" ' +
+    'stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
   // ---------------------------------------------------------------- websocket
 
@@ -228,17 +241,46 @@
   // Two facts decide the score's shape. Everything else is a line's colour.
   function shapeKey() {
     const live = livePassage();
-    const rest = groupSystems().map((g) => {
-      const leaves = leavesOf(g);
-      return leaves.length && leaves.every((id) => !isOpen(state.states[id])) ? "1" : "0";
-    }).join("");
-    return `${live ? live.node_id : ""}|${rest}|${[...state.openRest].sort().join(",")}`;
+    const groups = groupSystems();
+    const resting = restingKeys(groups, live);
+    const rest = groups.map((g) => (resting.has(groupKey(g)) ? "1" : "0")).join("");
+    return `${live ? live.node_id : ""}|${rest}`;
   }
 
   function leavesOf(group) {
     return group.heading
       ? coverableUnder(group.heading.id)
       : group.rows.filter((n) => n.coverable).map((n) => n.id);
+  }
+
+  const groupKey = (g) => (g.heading ? g.heading.id : "");
+
+  // Which systems are folded to their heading line. Finished ones rest because
+  // they are behind you. Unstarted ones more than one system from the passage
+  // you are playing rest too: without that, an unread section spends its full
+  // height on lines nobody has reached and pushes the one thing that matters
+  // off the bottom of the screen. Autoscroll is an anti-goal, so compression
+  // is what has to keep the passage in reach.
+  function restingKeys(groups, live) {
+    let anchor = -1;
+    groups.forEach((g, i) => {
+      const leaves = leavesOf(g);
+      if (live && leaves.includes(live.node_id)) anchor = i;
+    });
+    if (anchor < 0 && state.selected) {
+      groups.forEach((g, i) => { if (leavesOf(g).includes(state.selected)) anchor = i; });
+    }
+    const out = new Set();
+    groups.forEach((g, i) => {
+      const key = groupKey(g);
+      if (state.openRest.has(key)) return;
+      const leaves = leavesOf(g);
+      if (!leaves.length) return;
+      const done = leaves.filter((id) => !isOpen(state.states[id])).length;
+      if (done === leaves.length) { out.add(key); return; }
+      if (done === 0 && anchor >= 0 && Math.abs(i - anchor) > 1) out.add(key);
+    });
+    return out;
   }
 
   function updateFractions() {
@@ -261,6 +303,7 @@
 
     const live = livePassage();
     let groups = groupSystems();
+    const resting = restingKeys(groups, live);
 
     if (groups.length && !groups[0].heading && !groups[0].rows.some((n) => n.coverable)) {
       for (const node of groups[0].rows) {
@@ -294,6 +337,7 @@
         name.append(h);
         if (leaves.length) {
           frac = el("span", "frac num", restful(leaves, done));
+          if (!done) frac.textContent = `${leaves.length} ahead`;
           name.append(frac);
         }
         col.append(name);
@@ -308,12 +352,13 @@
       }
 
       // A system whose every line is behind you rests to one line.
-      const resting = leaves.length > 0 && done === leaves.length && !state.openRest.has(key);
       const isLive = !!(live && leaves.includes(live.node_id));
-      if (resting && !isLive) sys.classList.add("is-rest");
+      const rests = resting.has(key) && !isLive;
+      if (rests) sys.classList.add("is-rest");
       if (isLive) sys.classList.add("is-live");
+      if (rests && done === 0) sys.classList.add("is-ahead");
 
-      if (!resting || isLive) {
+      if (!rests) {
         for (const node of group.rows) {
           if (node.kind === "heading" && node.level < systemLevel()) {
             const title = el("div", "score-title");
@@ -374,13 +419,14 @@
     const body = el("span", "body");
     body.innerHTML = inlineMd(node.text_md || node.text || "");
     const rank = el("span", "rank hidden");
-    row.append(t, mk, body, rank);
+    const pin = el("span", "pin");
+    row.append(t, mk, body, pin, rank);
 
     const prep = el("div", "prep hidden");
     const holder = el("div");
     holder.append(row, prep);
 
-    state.elements.set(node.id, { root: row, holder, t, mk, body, prep, rank });
+    state.elements.set(node.id, { root: row, holder, t, mk, body, prep, rank, pin });
     if (node.coverable) state.order.push(node.id);
 
     row.addEventListener("click", (e) => {
@@ -411,7 +457,7 @@
     const prep = el("div", "prep hidden");
     wrap.append(prep);
 
-    state.elements.set(node.id, { root: wrap, holder: wrap, t: null, mk: null, body: line, prep, rank: null });
+    state.elements.set(node.id, { root: wrap, holder: wrap, t: null, mk: null, body: line, prep, rank: null, pin: null });
     if (node.coverable) state.order.push(node.id);
     line.addEventListener("click", () => select(node.id));
     wrap.addEventListener("dblclick", () => toggleCovered(node.id));
@@ -434,7 +480,12 @@
     if (node.must) cls.add("accent");
     if (st.hot && isOpen(st)) cls.add("hot");
 
-    if (parts.mk) parts.mk.textContent = node.must && isOpen(st) ? "∧" : "";
+    if (parts.mk) {
+      const marked = node.must && isOpen(st);
+      parts.mk.innerHTML = marked ? MARCATO : "";
+      parts.mk.title = marked ? "You marked this one" : "";
+    }
+    if (parts.pin) parts.pin.innerHTML = st.pinned ? PINNED : "";
     if (parts.t) {
       parts.t.textContent = st.status === "covered" && st.covered_at != null
         ? hms(st.covered_at).slice(0, 5)
@@ -565,25 +616,38 @@
 
   // ---------------------------------------------------------- edge markers
 
+  function systemOf(node) {
+    return state.systems.find((sys) => sys.el.contains(node)) || null;
+  }
+
+  // The passage you are playing is the only thing worth an edge marker, and the
+  // marker says which letter reaches it — so it is the answer and the key at once.
   function updateEdges() {
     const pane = $("#score");
     const rect = pane.getBoundingClientRect();
-    let above = 0, below = 0, firstAbove = null, firstBelow = null;
-    for (const [id, st] of Object.entries(state.states)) {
-      if (!st.hot || !isOpen(st)) continue;
-      const parts = state.elements.get(id);
-      if (!parts) continue;
-      const r = parts.root.getBoundingClientRect();
-      if (r.bottom < rect.top) { above++; firstAbove = firstAbove || parts.root; }
-      else if (r.top > rect.bottom) { below++; firstBelow = firstBelow || parts.root; }
-    }
     const up = $("#edge-up"), down = $("#edge-down");
-    up.querySelector("span").textContent = `${above} above`;
-    down.querySelector("span").textContent = `${below} below`;
-    up.classList.toggle("hidden", above === 0);
-    down.classList.toggle("hidden", below === 0);
-    up.onclick = () => firstAbove && firstAbove.scrollIntoView({ block: "center", behavior: "smooth" });
-    down.onclick = () => firstBelow && firstBelow.scrollIntoView({ block: "center", behavior: "smooth" });
+    const live = livePassage();
+    const parts = live && state.elements.get(live.node_id);
+
+    let target = null, dir = null;
+    if (parts) {
+      const r = parts.root.getBoundingClientRect();
+      if (r.bottom < rect.top + 4) dir = "up";
+      else if (r.top > rect.bottom - 4) dir = "down";
+      target = parts.root;
+    }
+
+    for (const [edge, want] of [[up, "up"], [down, "down"]]) {
+      const on = dir === want;
+      edge.classList.toggle("hidden", !on);
+      if (!on) continue;
+      const sys = systemOf(target);
+      const letter = sys ? sys.letter : "";
+      edge.querySelector("span").textContent = letter
+        ? `${letter} — the one to go to, ${want === "up" ? "above" : "below"}`
+        : `the one to go to, ${want === "up" ? "above" : "below"}`;
+      edge.onclick = () => target.scrollIntoView({ block: "center", behavior: "smooth" });
+    }
   }
 
   // ================================================================ overlay
@@ -712,17 +776,26 @@
         (age != null ? ` ${Math.round(age)}s ago` : "") +
         (llm.last_latency_ms ? ` ${(llm.last_latency_ms / 1000).toFixed(1)}s` : "");
     } else if (llm.state === "error" || llm.state === "backoff") {
-      text = `LLM ${llm.state}${llm.error ? ": " + llm.error.slice(0, 40) : ""}`;
+      text = llm.error ? humanError(llm.error) : `LLM ${llm.state}`;
       cls = "err";
     } else if (llm.state === "idle") {
       text = "LLM idle";
     }
     const pill = $("#llm-status");
     setPill(pill, text, cls);
-    pill.title = llm.interval_s
+    // Coverage is the model's work. Two failed ticks in a row and the map is no
+    // longer tracking the conversation, so it must stop looking like it is:
+    // an untouched section and a section nobody has discussed render alike.
+    if (llm.state === "error" || llm.state === "backoff") state.llmFails += 1;
+    else if (llm.state === "ok" || llm.state === "ticking") {
+      state.llmFails = 0;
+      if (llm.last_tick_t != null) state.lastTickAt = llm.last_tick_t;
+    }
+    renderTracking();
+    pill.title = (llm.error ? llm.error + " · " : "") + (llm.interval_s
       ? `A tick every ${llm.interval_s}s once ${llm.min_new_words} new words were said, `
         + `and immediately past ${llm.burst_words}. Click to change.`
-      : "Click to change how often the model is asked.";
+      : "Click to change how often the model is asked.");
 
     const u = (state.session && state.session.usage) || {};
     const cached = u.prompt_tokens ? Math.round((u.cached_tokens / u.prompt_tokens) * 100) : 0;
@@ -824,6 +897,18 @@
     }
   }
 
+  function renderTracking() {
+    const stalled = state.llmFails >= 2;
+    document.body.classList.toggle("not-tracking", stalled);
+    const note = $("#tracking");
+    note.classList.toggle("hidden", !stalled);
+    if (stalled) {
+      note.textContent = state.lastTickAt != null
+        ? `coverage stopped at ${hms(state.lastTickAt)} · transcription still running`
+        : "coverage never started · transcription still running";
+    }
+  }
+
   function renderStatusBar() {
     renderLanguagePill();
     const status = (state.session && state.session.status) || "idle";
@@ -840,8 +925,24 @@
 
   // ================================================================= toasts
 
+  // Errors reach the host mid-interview. Name the problem and the recovery; the
+  // provider's raw JSON belongs in the log and the settings dialog.
+  function humanError(raw) {
+    const text = String(raw || "");
+    if (/\b401\b|authentication failed|invalid api key/i.test(text)) {
+      return "The provider rejected the API key — open settings";
+    }
+    if (/\b429\b|rate limit/i.test(text)) return "The provider is rate-limiting — ticks will retry";
+    if (/\b(5\d\d)\b|timeout|timed out/i.test(text)) return "The provider is not answering — ticks will retry";
+    if (/model .*not found|unknown model/i.test(text)) return "That model does not exist at this provider";
+    const clean = text.replace(/^\w*Error:\s*/, "").replace(/\s*\{[\s\S]*$/, "").trim();
+    return clean || "The model call failed";
+  }
+
   function toast(level, text) {
-    const node = el("div", `toast ${level || "info"}`, text);
+    const shown = level === "error" ? humanError(text) : text;
+    const node = el("div", `toast ${level || "info"}`, shown);
+    node.title = String(text || "");
     $("#toasts").append(node);
     setTimeout(() => node.remove(), 6000);
   }
@@ -922,20 +1023,35 @@
   // social post into a scheduler, the mentions into the episode page.
   const sectionBlocks = new WeakMap();
 
-  function sectionNode(block) {
+  const COPY_MARK =
+    '<svg viewBox="0 0 18 18" width="16" height="16" aria-hidden="true" focusable="false">' +
+    '<rect x="6.2" y="6.2" width="9.3" height="9.3" fill="none" stroke="currentColor" stroke-width="1.6"/>' +
+    '<path d="M11.8 3.6H4.4a1.8 1.8 0 0 0-1.8 1.8v7.4" fill="none" stroke="currentColor" ' +
+    'stroke-width="1.6" stroke-linecap="round"/></svg>';
+
+  // Each note is a system of its own, with its own mark in the margin — the
+  // same grammar as the score, read at rest instead of at a glance.
+  function sectionNode(block, mark) {
     if (!block.level) {
       const lead = el("div", "md-lead");
       lead.innerHTML = window.marked.parse(block.body);
       return lead;
     }
     const sec = el("section", block.text ? "md-sec copyable" : "md-sec");
+    if (block.level === 2 && mark) {
+      const margin = el("div", "md-margin");
+      margin.append(el("span", "rmark", mark));
+      sec.append(margin);
+      sec.classList.add("md-system");
+    }
     const head = el("div", "md-sec-head");
     const h = el(`h${block.level}`);
     h.innerHTML = inlineMd(block.heading);
     head.append(h);
     if (block.text) {
-      const chip = el("button", "md-copy", "⧉");
+      const chip = el("button", "md-copy");
       chip.type = "button";
+      chip.innerHTML = COPY_MARK;
       chip.title = "Copy this section";
       chip.setAttribute("aria-label", `Copy “${block.heading}”`);
       head.append(chip);
@@ -992,7 +1108,10 @@
       if (name.endsWith("srt") || name === "transcript_srt" || !window.marked) {
         body.append(el("pre", "", text));
       } else {
-        for (const block of splitSections(text)) body.append(sectionNode(block));
+        let n = 0;
+        for (const block of splitSections(text)) {
+          body.append(sectionNode(block, block.level === 2 ? letterFor(n++) : null));
+        }
       }
     } catch (err) {
       body.textContent = `could not read ${name}: ${err}`;
@@ -1042,6 +1161,7 @@
   }
 
   function showDone(msg) {
+    for (const t of document.querySelectorAll("#toasts .toast")) t.remove();
     const body = $("#done-body");
     body.innerHTML = "";
     if (msg.error) body.append(el("p", "warn", `The wrap-up failed: ${msg.error}`));
@@ -1056,6 +1176,10 @@
 
   // =============================================================== keyboard
 
+  // Lower-case keys that already mean something; a section whose letter is one
+  // of these keeps the capital as its only binding rather than stealing it.
+  const RESERVED_KEYS = new Set(["j", "k", "c", "x", "p", "m", "t", "q", "l", "n", "w", "d"]);
+
   document.addEventListener("keydown", (e) => {
     const target = e.target;
     if (target instanceof Element && target.matches("input, textarea, [contenteditable]")) return;
@@ -1063,11 +1187,15 @@
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     const key = e.key;
 
-    // The margin shows a capital; type that capital. Lower case stays free for
-    // the marks and the overlays, so muscle memory never collides.
-    if (/^[A-Z]$/.test(key) && state.letters.has(key)) {
+    // The margin shows a capital and typing that capital always works. The
+    // lower-case letter works too wherever nothing else claims it, so the
+    // central move of this design does not require finding a modifier first.
+    const upper = key.length === 1 ? key.toUpperCase() : "";
+    const freeLower = /^[a-z]$/.test(key) && !RESERVED_KEYS.has(key);
+    if ((/^[A-Z]$/.test(key) || freeLower) && state.letters.has(upper)) {
+      const jump = upper;
       showWrap(false);
-      jumpTo(key);
+      jumpTo(jump);
       e.preventDefault();
       return;
     }

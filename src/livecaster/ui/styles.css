@@ -140,19 +140,19 @@ body { display: flex; flex-direction: column; overflow: hidden; }
   border-bottom: 1px solid var(--staff);
 }
 
-.clock { font-size: 32px; font-weight: 600; letter-spacing: -.02em; line-height: 1.1; }
+.clock { font-size: 34px; font-weight: 600; letter-spacing: -.02em; line-height: 1.1; }
 .clock.is-rec { color: var(--pencil); }
-.of { color: var(--ink-quiet); }
+.of { color: var(--ink-quiet); font-size: 20px; }
 
 /* Time against plan: one line that informs and never regroups the map. */
-#budget { display: flex; flex-wrap: wrap; gap: 4px 22px; color: var(--ink-quiet); }
+#budget { display: flex; flex-wrap: wrap; gap: 4px 22px; color: var(--ink-quiet); font-size: 19px; }
 #budget b { color: var(--ink); font-weight: 600; }
 #budget .over { color: var(--pencil); font-weight: 600; }
 #budget .marked { color: var(--mark); font-weight: 600; }
 
 /* Proof the machine is hearing you, continuously, instead of a dead pill. */
 #meters { display: flex; flex-wrap: wrap; gap: 4px 16px; cursor: pointer; }
-.meter { display: inline-flex; align-items: center; gap: 7px; color: var(--ink-quiet); font-size: 16px; }
+.meter { display: inline-flex; align-items: center; gap: 7px; color: var(--ink-quiet); font-size: 18px; }
 .meter .bars { display: inline-flex; align-items: flex-end; gap: 2px; height: 17px; }
 .meter .bar { width: 3px; height: 100%; background: var(--staff); transform-origin: bottom; transform: scaleY(.3); }
 .meter .bar.on { background: var(--ink-quiet); transform: scaleY(1); }
@@ -163,8 +163,9 @@ body { display: flex; flex-direction: column; overflow: hidden; }
 .status .pill.err, .status .pill.warn { color: var(--pencil); }
 .status .clickable { cursor: pointer; }
 .status .clickable:hover { color: var(--ink); }
-#sync-badge { color: var(--mark); font-size: 16px; }
-#busy { color: var(--pencil); font-size: 16px; }
+#sync-badge { color: var(--mark); font-size: 18px; }
+#busy { color: var(--pencil); font-size: 18px; }
+#tracking { color: var(--pencil); font-size: 18px; font-weight: 600; }
 
 .controls { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
 .controls button {
@@ -177,6 +178,12 @@ body { display: flex; flex-direction: column; overflow: hidden; }
 .controls button.danger { color: var(--pencil); border-color: var(--pencil); }
 .controls button.danger:hover { background: var(--pencil); color: #fff; }
 .controls .icon { padding: 4px 9px; }
+
+/* The model has stopped answering: the map is no longer tracking the
+   conversation, and an untouched line must stop reading as a discussed one. */
+body.not-tracking .system > .margin::after { background: none; border-left: 1px dashed var(--staff); }
+body.not-tracking .rmark { border-style: dashed; }
+body.not-tracking #head { border-bottom-style: dashed; border-bottom-color: var(--pencil); }
 
 /* ================================================================= score */
 
@@ -203,7 +210,7 @@ body { display: flex; flex-direction: column; overflow: hidden; }
   display: inline-flex; align-items: center; justify-content: center;
   min-width: 38px; height: 38px; padding: 0 7px;
   border: 2px solid var(--ink); color: var(--ink); background: transparent;
-  font: inherit; font-size: 22px; font-weight: 700; letter-spacing: .02em;
+  font: inherit; font-size: 24px; font-weight: 700; letter-spacing: .02em;
   cursor: pointer;
 }
 .rmark:hover { border-color: var(--pencil); color: var(--pencil); }
@@ -223,7 +230,7 @@ body { display: flex; flex-direction: column; overflow: hidden; }
 .system.is-live > .margin::after { background: var(--pencil); }
 
 .sysname { display: flex; flex-wrap: wrap; align-items: baseline; gap: 3px 13px; margin-bottom: 8px; }
-.sysname h2 { margin: 0; font-size: 21px; font-weight: 600; letter-spacing: -.01em; }
+.sysname h2 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -.01em; }
 .sysname .frac { color: var(--ink-quiet); font-size: 17px; }
 
 /* A system whose lines are all behind you rests to one line. */
@@ -231,6 +238,11 @@ body { display: flex; flex-direction: column; overflow: hidden; }
 .system.is-rest .sysname { margin-bottom: 0; }
 .system.is-rest .sysname h2 { font-size: 18px; font-weight: 400; color: var(--rest); }
 .system.is-rest .sysname .frac { color: var(--rest); }
+
+/* Folded because it is ahead of you rather than behind: same one line, but the
+   mark keeps the ink of something still to play. */
+.system.is-ahead .rmark { border-color: var(--ink-quiet); color: var(--ink-quiet); }
+.system.is-ahead .sysname h2 { color: var(--ink-quiet); }
 
 /* A sub-heading inside a system stays a label, never another system. */
 .substave { margin: 12px 0 4px; color: var(--ink-quiet); font-weight: 600; font-size: 17px; }
@@ -254,7 +266,11 @@ body { display: flex; flex-direction: column; overflow: hidden; }
   margin: 0 0 14px; color: var(--ink);
 }
 .stave .body code { font-size: .92em; }
-.stave .mk { flex: none; }
+.stave .mk { flex: none; display: inline-flex; width: 16px; }
+.stave .mk svg { display: block; }
+.stave .pin { flex: none; display: inline-flex; }
+.stave.pinned .pin { color: var(--ok); }
+.stave .pin svg { display: block; }
 
 .stave.cut .body { color: var(--ink-quiet); text-decoration: line-through; text-decoration-thickness: 1px; text-decoration-color: var(--staff); }
 .stave.warm .body { border-bottom: 1px dotted var(--rest); }
@@ -264,10 +280,9 @@ body { display: flex; flex-direction: column; overflow: hidden; }
 
 /* Marcato: the host marked this line and it has not been played. */
 .stave.accent .body { color: var(--mark); }
-.stave.accent .mk { color: var(--mark); font-weight: 700; }
+.stave.accent .mk { color: var(--mark); }
 .stave.accent.cut .body { color: var(--ink-quiet); }
 .stave.accent.cut .mk { color: var(--rest); }
-.stave.pinned .body::after { content: " ✓"; color: var(--ok); }
 
 /* A hot line that is not the top-ranked one still says so, quietly. */
 .stave.hot .body { color: var(--pencil); }
@@ -286,7 +301,7 @@ body { display: flex; flex-direction: column; overflow: hidden; }
 }
 .play .line {
   margin: 0 0 10px; max-width: 24ch;
-  font-size: clamp(30px, 3.4vw, 42px); font-weight: 700; line-height: 1.05;
+  font-size: clamp(32px, 3.6vw, 44px); font-weight: 700; line-height: 1.05;
   letter-spacing: -.02em; color: var(--pencil); text-wrap: balance;
   cursor: pointer;
 }
@@ -344,9 +359,8 @@ body { display: flex; flex-direction: column; overflow: hidden; }
 /* Transcript, questions, mentions and new topics are keys that overlay and
    leave. They are never a tab strip stealing room from the plan. */
 #overlay {
-  position: absolute; inset: 0 0 0 auto; z-index: 8;
-  width: min(520px, 100%);
-  display: flex; flex-direction: column;
+  flex: 0 0 min(520px, 46%); z-index: 8;
+  display: flex; flex-direction: column; min-height: 0;
   background: var(--paper-up);
   border-left: 1px solid var(--staff);
 }
@@ -360,7 +374,7 @@ body { display: flex; flex-direction: column; overflow: hidden; }
   font: inherit; font-size: 16px; color: var(--ink-quiet); cursor: pointer;
 }
 .overlay-head .close:hover { color: var(--ink); }
-#overlay-body { flex: 1; overflow-y: auto; padding: 14px 18px 30px; }
+#overlay-body { flex: 1; overflow-y: auto; padding: 16px 18px 30px; }
 #overlay-body ul { margin: 0; padding: 0; list-style: none; }
 #overlay-body li { padding: 7px 0; border-bottom: 1px solid color-mix(in srgb, var(--staff) 45%, transparent); }
 #overlay-body li:last-child { border-bottom: 0; }
@@ -389,7 +403,7 @@ body { display: flex; flex-direction: column; overflow: hidden; }
   padding: 22px clamp(14px, 2.4vw, 30px) 60px;
 }
 .wrap-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px 18px; max-width: 74ch; }
-.wrap-head h2 { margin: 0; font-size: 26px; font-weight: 600; letter-spacing: -.01em; }
+.wrap-head h2 { margin: 0; font-size: 30px; font-weight: 700; letter-spacing: -.022em; }
 .wrap-head .back {
   margin-left: auto; appearance: none; font: inherit; font-size: 16px; cursor: pointer;
   background: transparent; color: var(--ink);
@@ -404,24 +418,31 @@ body { display: flex; flex-direction: column; overflow: hidden; }
 .result-files .chip {
   appearance: none; font: inherit; font-size: 16px; cursor: pointer;
   color: var(--ink-quiet); background: transparent;
-  border: 1px solid var(--staff); border-radius: 99px; padding: 3px 13px;
+  border: 1px solid var(--staff); padding: 4px 13px;
 }
 .result-files .chip:hover { color: var(--ink); }
 .result-files .chip.active { color: var(--ink); border-color: var(--ink); }
 .result-files .chip.copy { margin-left: auto; }
+.result-body { padding-bottom: 30px; }
 .result-dir { flex-basis: 100%; font-size: 15px; color: var(--rest); cursor: pointer; word-break: break-all; }
 
-.result-body { max-width: 74ch; }
+.result-body { max-width: 82ch; }
 .result-body pre { font-size: 15px; white-space: pre-wrap; word-break: break-word; background: var(--paper-up); padding: 10px; border-radius: 3px; }
-.md-lead h1 { font-size: 28px; margin: 6px 0 4px; letter-spacing: -.02em; }
+.md-lead { margin-bottom: 18px; }
+.md-lead h1 { font-size: clamp(30px, 3.2vw, 40px); margin: 6px 0 6px; letter-spacing: -.025em; line-height: 1.06; }
 .md-lead p { color: var(--ink-quiet); margin: 0 0 6px; }
 
-.md-sec { position: relative; padding: 12px 44px 12px 12px; margin: 0 0 2px -12px; border-radius: 4px; }
+.md-system { display: grid; grid-template-columns: var(--margin-w) minmax(0, 1fr); gap: 0 20px; }
+.md-system > .md-margin { grid-row: 1 / span 3; }
+.md-system .rmark { cursor: default; }
+.md-system:hover .rmark, .md-system:focus-within .rmark { border-color: var(--pencil); color: var(--pencil); }
+.md-sec { position: relative; padding: 14px 44px 14px 0; margin: 0; border-top: 1px solid var(--staff); }
+.md-sec:first-of-type { border-top: 0; }
 .md-sec.copyable { cursor: pointer; }
 .md-sec.copyable:hover, .md-sec:focus-within { background: var(--sel); }
 .md-sec-head { display: flex; align-items: baseline; gap: 10px; }
-.md-sec-head h2 { margin: 0 0 6px; font-size: 18px; font-weight: 600; color: var(--ink-quiet); }
-.md-sec-head h3 { margin: 0 0 6px; font-size: 17px; font-weight: 600; color: var(--ink-quiet); }
+.md-sec-head h2 { margin: 0 0 8px; font-size: 22px; font-weight: 600; color: var(--ink); letter-spacing: -.01em; }
+.md-sec-head h3 { margin: 0 0 6px; font-size: 19px; font-weight: 600; color: var(--ink-quiet); }
 .md-sec-body p, .md-sec-body li { margin: 0 0 6px; }
 .md-sec-body ul, .md-sec-body ol { margin: 0; padding-left: 22px; }
 .md-sec-body a { color: var(--mark); }
@@ -429,9 +450,10 @@ body { display: flex; flex-direction: column; overflow: hidden; }
 .md-copy {
   position: absolute; top: 9px; right: 9px;
   appearance: none; border: 0; background: none; cursor: pointer;
-  color: var(--ink-quiet); font-size: 17px; padding: 5px; border-radius: 3px; line-height: 1;
-  opacity: 0; transition: opacity .12s ease-out;
+  color: var(--rest); padding: 5px; border-radius: 3px; line-height: 0;
+  opacity: .55; transition: opacity .12s ease-out;
 }
+.md-copy svg { display: block; }
 .md-sec:hover .md-copy, .md-sec:focus-within .md-copy, .md-copy:focus-visible { opacity: 1; }
 .md-copy:hover { color: var(--pencil); }
 .md-sec.copied { background: color-mix(in srgb, var(--ok) 12%, transparent); }
@@ -514,12 +536,13 @@ kbd {
   .system > .margin::after { display: none; }
   .rmark { min-width: 32px; height: 32px; font-size: 19px; }
   .stave .t { min-width: 0; }
-  #overlay { width: 100%; }
+  #overlay { flex-basis: 100%; }
+  .md-system { grid-template-columns: 44px minmax(0, 1fr); gap: 0 13px; }
   .controls { margin-left: 0; }
 }
 
 @media (max-width: 560px) {
   .clock { font-size: 26px; }
   .sysname h2 { font-size: 19px; }
-  .play .line { font-size: 28px; }
+  .play .line { font-size: 32px; }
 }
