@@ -57,11 +57,10 @@ sessions, not estimated.
 ## Operating Context
 
 - **The live scene is the design constraint.** The host is speaking while the screen changes. The
-  live surfaces (outline map, Now panel, top bar) must carry short, highlighted, findable
-  information — nothing that needs to be read in full, nothing that rewards study. The Now panel is
-  already one line plus three labels of at most five words each; that is the scale, not an accident.
-  This does **not** apply to Settings (opened before the episode, at rest) or to the show notes
-  (read afterwards, and allowed to be verbose).
+  live surface must carry short, highlighted, findable information — nothing that needs to be read in
+  full, nothing that rewards study. Exactly one thing is allowed to be large at a time: the topic that
+  just became reachable. This does **not** apply to Settings (opened before the episode, at rest) or
+  to the show notes (read afterwards, and allowed to be verbose).
 - **Three run modes**: in person (one shared microphone, or one per person), remote (host mic plus
   the browser's audio output, via AudioTee or BlackHole on macOS, PipeWire monitor on Linux), and
   replay from a file for development.
@@ -77,24 +76,28 @@ sessions, not estimated.
   transcript, events, WAV backups, LLM traffic, state. A crash costs the utterance in flight.
 - **The sync mark.** The real recorder (Zencastr, the host's usual rig) starts at a different moment;
   the host presses `m` when it does, and chapter timestamps are relative to that.
-- **Keyboard first while live**: `j`/`k`, `c`, `x`, `p`, `1`/`2`/`3`, `m`, `t`, `d`, `space`, `,`, `?`.
+- **Keyboard first while live**: `A`–`Z` jump to the section whose margin mark shows that capital,
+  `1`/`2`/`3` go to a suggestion by rank, then `j`/`k`, `c`, `x`, `p`, `t`/`q`/`l`/`n`, `w`, `m`, `d`,
+  `space`, `,`, `Esc`, `?`. The marks are capitals so the lower-case keys keep their meanings.
 
 ## Capabilities and Constraints
 
 **Confirmed capabilities**: outline parsing from arbitrary Markdown; live local STT (Parakeet by
 default, Whisper variants when a language must be forced); the tick loop and its fast lane; per-item
-states (untouched, warm, touched, hot, covered, skipped, pinned) with host override; side panel of
-Now / Questions / Mentions / Transcript / New topics / Result; pre-flight pass; mid-session
+states (untouched, warm, touched, hot, covered, skipped, pinned, plus must-ask from a bold line) with
+host override; transcript, questions, mentions and new topics as overlays on a key; pre-flight pass;
+an optional episode target and the time budget it feeds; opt-in token-authenticated LAN access;
+mid-session
 reconfiguration of language, tick tuning, audio channels, models and outline; pause/resume; resume
 from a session directory; wrap-up producing show notes, annotated outline, transcript Markdown and
 SRT, and the raw analysis JSON; `check`, `devices`, `replay`, `wrapup`, `export`.
 
 **Constraints that bind future work**:
 
-- **Show notes must be copyable by section, on click.** The end-of-session action is: click a whole
+- **Show notes are copyable by section, on click.** The end-of-session action is to click a whole
   section — the notes, a social post, the mentions list — and paste it into WordPress or a social
-  media manager. Today only whole-file copy exists (`app.js`, the Result panel `⧉ Copy` chip); this
-  is a known gap, not the intended end state.
+  media manager. Built: each block copies without its heading, and sections are found by heading level
+  rather than by their words, because the notes come back in the language of the podcast.
 - **The site stays one hand-editable file.** `../livecaster-site/index.html` is a single nsite-clay
   document published over Nostr: no build step, no bundler, no framework. It is edited in the browser
   with `#edit` by the owner key. Any change has to survive that.
