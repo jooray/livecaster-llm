@@ -320,7 +320,7 @@
       const margin = el("div", "margin");
       const mark = el("button", "rmark", letter);
       mark.type = "button";
-      mark.title = `Jump here — press ${letter}`;
+      mark.title = `Jump here. Press ${letter}.`;
       mark.setAttribute("aria-label", `Jump to ${group.heading ? group.heading.text : "the opening"}`);
       margin.append(mark);
 
@@ -644,7 +644,7 @@
       const sys = systemOf(target);
       const letter = sys ? sys.letter : "";
       edge.querySelector("span").textContent = letter
-        ? `${letter} — the one to go to, ${want === "up" ? "above" : "below"}`
+        ? `${letter} · the one to go to, ${want === "up" ? "above" : "below"}`
         : `the one to go to, ${want === "up" ? "above" : "below"}`;
       edge.onclick = () => target.scrollIntoView({ block: "center", behavior: "smooth" });
     }
@@ -827,7 +827,7 @@
     pill.className = "pill clickable" + (cur !== "auto" && stt.can_force_language === false ? " warn" : "");
     let title = `Transcription language: ${cur}. Click to change.`;
     if (cur !== "auto" && stt.can_force_language === false) {
-      title = `${stt.engine || "this engine"} detects the language itself — ${cur} is a hint, not a lock. Click to change.`;
+      title = `${stt.engine || "this engine"} detects the language itself, so ${cur} is a hint rather than a lock. Click to change.`;
     }
     if (stt.dropped_language) title += ` ${stt.dropped_language} wrong-alphabet line(s) dropped.`;
     pill.title = title;
@@ -930,10 +930,10 @@
   function humanError(raw) {
     const text = String(raw || "");
     if (/\b401\b|authentication failed|invalid api key/i.test(text)) {
-      return "The provider rejected the API key — open settings";
+      return "The provider rejected the API key. Open settings.";
     }
-    if (/\b429\b|rate limit/i.test(text)) return "The provider is rate-limiting — ticks will retry";
-    if (/\b(5\d\d)\b|timeout|timed out/i.test(text)) return "The provider is not answering — ticks will retry";
+    if (/\b429\b|rate limit/i.test(text)) return "The provider is rate-limiting. Ticks will keep retrying.";
+    if (/\b(5\d\d)\b|timeout|timed out/i.test(text)) return "The provider is not answering. Ticks will keep retrying.";
     if (/model .*not found|unknown model/i.test(text)) return "That model does not exist at this provider";
     const clean = text.replace(/^\w*Error:\s*/, "").replace(/\s*\{[\s\S]*$/, "").trim();
     return clean || "The model call failed";
@@ -1302,7 +1302,7 @@
 
   function sourceOptions() {
     const audio = (settings && settings.audio) || { devices: [], audiotee: [] };
-    const out = [[AUTO_SOURCE, "Auto — whichever mic is plugged in"]];
+    const out = [[AUTO_SOURCE, "Auto: whichever mic is plugged in"]];
     for (const d of audio.devices || []) {
       const notes = [`${d.channels}ch`, `${d.samplerate} Hz`];
       if (d.is_default) notes.push("system default");
@@ -1310,7 +1310,7 @@
       out.push([`device:${d.name}`, `${d.name} · ${notes.join(" · ")}`]);
     }
     for (const a of audio.audiotee || []) {
-      out.push([`audiotee:${a.name}`, `${a.name} — system audio (AudioTee)`]);
+      out.push([`audiotee:${a.name}`, `${a.name}, system audio via AudioTee`]);
     }
     return out;
   }
@@ -1342,7 +1342,7 @@
     // quietly rewrite it.
     const known = options.some(([value]) => value === ch.source);
     if (ch.source && !known) {
-      const opt = el("option", "", `${ch.source} — not connected`);
+      const opt = el("option", "", `${ch.source} (not connected)`);
       opt.value = ch.source;
       select.insertBefore(opt, select.firstChild);
     }
@@ -1413,7 +1413,7 @@
         "wrong for an episode.");
     }
     if (!audio.audiotee_available && chosen.some((c) => c.startsWith("audiotee:"))) {
-      lines.push("The audiotee helper is not built — run ./helpers/audiotee/build.sh.");
+      lines.push("The audiotee helper is not built. Run ./helpers/audiotee/build.sh.");
     }
     if (!lines.length && (settings || {}).session_status === "running") {
       lines.push("Applying reopens the microphones; the clock and the transcript carry on.");
@@ -1433,7 +1433,7 @@
       const bits = [engine.key];
       if (engine.note) bits.push(engine.note);
       else if (engine.can_force_language) bits.push("can lock the language");
-      const opt = el("option", "", bits.join(" — "));
+      const opt = el("option", "", bits.join(" · "));
       opt.value = engine.key;
       opt.disabled = !engine.installed;
       select.append(opt);

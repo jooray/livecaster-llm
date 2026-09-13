@@ -260,7 +260,7 @@ than refusing to start.
 `space` pause/resume · `,` settings · `?` help.
 
 The outline is drawn as a score. Each section is a *system* with a lettered rehearsal mark in the
-margin, and that letter is how you jump there — an orchestra re-enters at any bar for the same reason
+margin, and that letter is how you jump there. An orchestra re-enters at any bar for the same reason
 you need to when a guest wanders. Covered lines take a single engraver's cut with the time beside
 them; a section you have finished rests to one line, in place, so the plan visibly shrinks as you
 work. Click it to open it back up.
@@ -270,8 +270,8 @@ model's reason and a sentence you could use to get there. A line you **bolded** 
 must-ask and carries a marcato accent until you have answered it.
 
 Nothing else sits on the screen. The transcript, the questions, the links you promised and the topics
-that were not in your plan are keys that overlay and leave again. Nothing there is meant to be read
-in full while you are talking.
+that were not in your plan are keys that overlay and leave again. None of it is meant to be read in
+full while you are talking.
 
 ## Privacy and cost
 
