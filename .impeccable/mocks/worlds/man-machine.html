@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Livecaster — Man-Machine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ------------------------------------------------------------------
+   MAN-MACHINE — the plan as a wiring schematic on a traffic grid.
+
+   The only direction that makes the pre-flight's cross-links visible.
+   Livecaster already computes which topics relate to which; today that
+   knowledge is invisible. Here it is the wiring, and current reaches a
+   node when the conversation does.
+
+   States are traffic signals, which is the one colour language a person
+   reads at two metres without being taught: green is behind you, amber
+   is live, red is the rule you have not crossed yet. Everything sits on
+   a visible modular grid; connectors stay orthogonal at every width.
+   ------------------------------------------------------------------ */
+
+:root {
+  --ground: #08090a;
+  --grid:   #171a1d;
+  --white:  #f4f4f2;
+  --dim:    #7c828a;
+  --dark:   #474d55;
+  --red:    #e10600;
+  --amber:  #ffb400;
+  --green:  #00a13a;
+
+  --t: "Jost", -apple-system, BlinkMacSystemFont, sans-serif;
+
+  color-scheme: dark;
+  accent-color: var(--amber);
+}
+
+* { box-sizing: border-box; }
+
+html, body { margin: 0; min-height: 100%; background: var(--ground); }
+body {
+  font-family: var(--t);
+  font-size: 18px; line-height: 1.4;
+  color: var(--white);
+  -webkit-font-smoothing: antialiased;
+  padding: 0 0 44px;
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 40px 40px;
+  background-position: -1px -1px;
+}
+
+::selection { background: var(--amber); color: #000; }
+:focus-visible { outline: 2px solid var(--amber); outline-offset: 3px; }
+* { scrollbar-width: thin; scrollbar-color: #1f2327 transparent; }
+*::-webkit-scrollbar { width: 10px; }
+*::-webkit-scrollbar-thumb { background: #1f2327; }
+
+.num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
+.caps { text-transform: uppercase; letter-spacing: .16em; font-size: 17px; font-weight: 500; }
+
+.wrap { max-width: 1160px; padding: 0 clamp(16px, 3vw, 40px); }
+
+/* ---------------------------------------------------------- head */
+
+.head {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px clamp(18px, 3vw, 44px);
+  padding: 26px 0 22px;
+}
+.head .clock { font-size: 40px; font-weight: 600; letter-spacing: -.01em; line-height: 1; }
+.head .of { color: var(--dim); }
+.head .budget { display: flex; flex-wrap: wrap; gap: 4px 24px; color: var(--dim); }
+.head .budget b { color: var(--white); font-weight: 600; }
+.head .budget .marked { color: var(--red); font-weight: 600; }
+.listening { display: inline-flex; align-items: flex-end; gap: 3px; height: 18px; }
+.listening i { display: block; width: 4px; background: var(--green); animation: pulse 1.05s ease-in-out infinite; }
+.listening i:nth-child(1) { height: 7px; }
+.listening i:nth-child(2) { height: 14px; animation-delay: .16s; }
+.listening i:nth-child(3) { height: 10px; animation-delay: .33s; }
+.listening i:nth-child(4) { height: 16px; animation-delay: .1s; }
+@keyframes pulse { 0%,100% { transform: scaleY(.3); } 50% { transform: scaleY(1); } }
+@media (prefers-reduced-motion: reduce) { .listening i { animation: none; } }
+
+/* One hazard rule crosses the whole field. */
+.hazard { height: 3px; background: var(--red); margin-bottom: 34px; }
+
+/* ---------------------------------------------------------- nodes */
+
+.block { margin-bottom: 34px; }
+.blockname {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px;
+  margin-bottom: 12px; color: var(--dim);
+}
+.blockname h2 { margin: 0; color: var(--white); }
+.blockname h2.caps { font-size: 17px; }
+.blockname .frac { color: var(--dim); letter-spacing: .1em; font-size: 16px; }
+
+.node { display: flex; align-items: baseline; gap: 16px; padding: 7px 0; position: relative; }
+
+/* The lamp: the one element that carries state, and it is never colour alone. */
+.lamp {
+  flex: none; width: 13px; height: 13px; border-radius: 50%;
+  align-self: center; background: transparent;
+  border: 2px solid var(--dark);
+}
+.node.done .lamp  { background: var(--green); border-color: var(--green); }
+.node.warm .lamp  { border-color: var(--white); }
+.node.open .lamp  { border-color: var(--dark); }
+.node.must .lamp  { border-color: var(--red); box-shadow: inset 0 0 0 3px var(--ground), inset 0 0 0 9px var(--red); }
+
+.node .t { color: var(--dim); min-width: 5.5ch; font-size: 16px; }
+.node .t.blank { color: transparent; }
+.node.done .label { color: var(--dim); text-decoration: line-through; text-decoration-thickness: 1px; text-decoration-color: var(--dark); }
+.node.open .label { color: var(--white); }
+.node.warm .label { color: var(--white); }
+.node.must .label { color: var(--red); font-weight: 500; }
+.node.must .flag { color: var(--red); letter-spacing: .14em; font-size: 14px; text-transform: uppercase; margin-left: 10px; }
+
+/* ---------------------------------------------------------- live node */
+
+.live {
+  position: relative;
+  display: flex; align-items: flex-start; gap: clamp(14px, 2vw, 24px);
+  margin: 18px 0 22px; padding: 22px clamp(16px, 2vw, 26px);
+  background: #0d0e0f;
+  outline: 2px solid var(--amber);
+}
+.live .key {
+  flex: none;
+  width: 46px; height: 46px; display: grid; place-items: center;
+  background: var(--amber); color: #000;
+  font-size: 26px; font-weight: 700; line-height: 1;
+}
+.live h3 {
+  margin: 0 0 10px; max-width: 20ch;
+  font-size: clamp(30px, 3.4vw, 42px); font-weight: 600; line-height: 1.03;
+  letter-spacing: -.01em; color: var(--amber); text-wrap: balance;
+}
+.live p { margin: 0 0 6px; max-width: 52ch; color: var(--white); }
+.live .segue { color: var(--dim); }
+
+/* Current travelling the wire when a node goes live. */
+.wire { position: absolute; left: 0; right: 0; top: 0; height: 2px; background: var(--amber); transform-origin: left; animation: current .5s cubic-bezier(.2,.8,.2,1) 1; }
+@keyframes current { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@media (prefers-reduced-motion: reduce) { .wire { animation: none; } }
+
+/* ---------------------------------------------------------- cross-links */
+
+.links { margin: 26px 0 0; padding-top: 18px; border-top: 1px solid var(--grid); }
+.links .caps { color: var(--dim); margin-bottom: 10px; display: block; }
+.linkrow { display: flex; align-items: center; gap: 12px; padding: 5px 0; color: var(--white); }
+.linkrow svg { flex: none; }
+.linkrow .to { color: var(--dim); }
+
+.keys {
+  margin-top: 34px; padding-top: 16px; border-top: 1px solid var(--grid);
+  color: var(--dim); display: flex; flex-wrap: wrap; gap: 6px 26px;
+}
+.keys b { color: var(--amber); font-weight: 600; }
+
+@media (max-width: 760px) {
+  .node .t { min-width: 0; }
+  .live { flex-direction: column; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="head">
+    <span class="clock num">00:41:07</span>
+    <span class="of num">of 60:00</span>
+    <span class="listening" aria-label="Hearing you"><i></i><i></i><i></i><i></i></span>
+    <span class="budget num">
+      <span><b>19</b> min left</span>
+      <span><b>11</b> unasked</span>
+      <span class="marked">2 you marked</span>
+    </span>
+  </div>
+  <div class="hazard"></div>
+
+  <div class="block">
+    <div class="blockname"><h2 class="caps">1 · The problem</h2><span class="frac num">ALL 4 · 00:03–00:11</span></div>
+  </div>
+
+  <div class="block">
+    <div class="blockname"><h2 class="caps">2 · What it does</h2><span class="frac num">6/7</span></div>
+    <div class="node done"><span class="lamp"></span><span class="t num">18:55</span><span class="label">Open the map. The outline is the whole interface</span></div>
+    <div class="node done"><span class="lamp"></span><span class="t num">24:02</span><span class="label">Mentions: books, people and links pulled out as they are said</span></div>
+    <div class="node open"><span class="lamp"></span><span class="t blank num">—</span><span class="label">Press Finish and open the Result tab</span></div>
+  </div>
+
+  <div class="block">
+    <div class="blockname"><h2 class="caps">3 · What comes out at the end</h2><span class="frac num">ALL 3 · 00:28–00:33</span></div>
+  </div>
+
+  <div class="block">
+    <div class="blockname"><h2 class="caps">4 · Technology, and why each piece</h2><span class="frac num">2/4</span></div>
+    <div class="node done"><span class="lamp"></span><span class="t num">35:10</span><span class="label">Everything that touches audio is local</span></div>
+    <div class="node warm"><span class="lamp"></span><span class="t blank num">—</span><span class="label">Only the reasoning is remote</span></div>
+    <div class="node must"><span class="lamp"></span><span class="t blank num">—</span><span class="label">The part I would defend hardest</span><span class="flag">you marked it</span></div>
+  </div>
+
+  <div class="block">
+    <div class="blockname"><h2 class="caps">6 · What is not solved</h2><span class="frac num">0/4</span></div>
+
+    <div class="live">
+      <span class="wire"></span>
+      <span class="key num">1</span>
+      <div>
+        <h3>Slovak is only as good as the microphone</h3>
+        <p>The guest just said they record on a Bluetooth headset. This asks it directly.</p>
+        <p class="segue">“You mentioned you record on a headset — that is actually the thing that breaks this…”</p>
+
+        <div class="links">
+          <span class="caps">Wired to</span>
+          <div class="linkrow">
+            <svg width="26" height="14" viewBox="0 0 26 14" fill="none" aria-hidden="true">
+              <path d="M1 7h10V2h14" stroke="#ffb400" stroke-width="1.5"/>
+              <circle cx="1.5" cy="7" r="1.5" fill="#ffb400"/>
+            </svg>
+            <span>Parakeet cannot be told what language it is hearing</span>
+            <span class="to">· section 6</span>
+          </div>
+          <div class="linkrow">
+            <svg width="26" height="14" viewBox="0 0 26 14" fill="none" aria-hidden="true">
+              <path d="M1 7h10v5h14" stroke="#474d55" stroke-width="1.5"/>
+              <circle cx="1.5" cy="7" r="1.5" fill="#474d55"/>
+            </svg>
+            <span>Everything that touches audio is local</span>
+            <span class="to">· section 4, covered 35:10</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="node open"><span class="lamp"></span><span class="t blank num">—</span><span class="label">Parakeet cannot be told what language it is hearing</span></div>
+    <div class="node must"><span class="lamp"></span><span class="t blank num">—</span><span class="label">Closing question: what would I want it to do that it does not do yet?</span><span class="flag">you marked it</span></div>
+  </div>
+
+  <div class="keys">
+    <span><b>1</b> jump to it</span>
+    <span><b>c</b> covered</span>
+    <span><b>x</b> skip</span>
+    <span><b>t</b> transcript</span>
+    <span><b>q</b> questions</span>
+    <span><b>l</b> links promised</span>
+  </div>
+
+</div>
+</body>
+</html>
