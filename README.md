@@ -301,7 +301,7 @@ Sonnet 5 wrap-up measured **$0.14 to 0.20** on short episodes and is dominated b
 writes, not by the transcript it reads. A whole six-minute live session cost **$0.17**.
 Livecaster ticks with
 `deepseek-v4-flash-0731-fast`, which answers in ~9 s instead of the plain model's ~38 s, and wraps
-up on `claude-sonnet-5`, where latency does not matter and the writing does. `DECISIONS.md` (D8,
+up on `claude-sonnet-5-5`, where latency does not matter and the writing does. `DECISIONS.md` (D8,
 D17) has the measurements. To trade quality back for cost:
 
 ```bash
@@ -318,14 +318,14 @@ prepaid Venice credits:
 | Setting | Default | Notes |
 |---|---|---|
 | `llm.tick_model` | `deepseek-v4-flash-0731-fast` | 3 to 8 s per tick, ~$0.0009 each |
-| `llm.final_model` | `claude-sonnet-5` | Sonnet 5 through Venice; $0.14 to 0.20 per episode |
+| `llm.final_model` | `claude-sonnet-5-5` | Sonnet 5.5 through Venice; $0.14 to 0.20 per episode at Sonnet 5 rates, about 25% more now |
 
 To bill Anthropic or OpenAI directly instead, prefix the model and supply that provider's key:
 
 ```bash
 uv sync --extra anthropic         # only for the direct Anthropic path
 export ANTHROPIC_API_KEY=...
-uv run livecaster run outlines/osnova.md --set llm.final_model=anthropic:claude-sonnet-5
+uv run livecaster run outlines/osnova.md --set llm.final_model=anthropic:claude-sonnet-5-5
 ```
 
 `livecaster check` confirms every configured model exists at the provider it routes to, and prints

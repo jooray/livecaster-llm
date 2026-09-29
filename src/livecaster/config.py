@@ -82,9 +82,9 @@ class LLMConfig(BaseModel):
     # Measured on 2026-09-03: the plain flash model needs ~38 s per tick, the -fast
     # variant ~9 s. See DECISIONS.md (D8).
     tick_model: str = "deepseek-v4-flash-0731-fast"
-    # Sonnet 5 through Venice, so it draws on the same prepaid credits. Prefix a
-    # model with a provider to send it elsewhere: `anthropic:claude-sonnet-5`.
-    final_model: str = "claude-sonnet-5"
+    # Sonnet 5.5 through Venice, so it draws on the same prepaid credits. Prefix a
+    # model with a provider to send it elsewhere: `anthropic:claude-sonnet-5-5`.
+    final_model: str = "claude-sonnet-5-5"
     tick_interval_s: float = 25.0
     min_new_words: int = 25
     burst_words: int = 120

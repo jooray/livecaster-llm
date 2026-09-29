@@ -64,9 +64,9 @@ default_provider = "venice"                 # where a model with no `provider:` 
 # -fast costs twice as much per output token but answers in ~9 s instead of ~38 s.
 tick_model = "deepseek-v4-flash-0731-fast"
 # Venice proxies Claude, so Sonnet 5 bills against the same prepaid credits.
-# Prefix a model to send it somewhere else: "anthropic:claude-sonnet-5" (needs
+# Prefix a model to send it somewhere else: "anthropic:claude-sonnet-5-5" (needs
 # `uv sync --extra anthropic` and ANTHROPIC_API_KEY) or "openai:gpt-5".
-final_model = "claude-sonnet-5"
+final_model = "claude-sonnet-5-5"
 tick_interval_s = 25
 min_new_words = 25                          # do not tick before this much was said
 burst_words = 120                           # tick immediately past this

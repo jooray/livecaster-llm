@@ -702,7 +702,7 @@ async def test_set_models_lands_on_the_next_tick(engine: Engine):
     await engine.startup()
     engine.set_models(tick_model="deepseek-v4-pro-0813", final_model="", stt_engine="mock")
     assert engine.config.llm.tick_model == "deepseek-v4-pro-0813"
-    assert engine.config.llm.final_model == "claude-sonnet-5"     # "" leaves it alone
+    assert engine.config.llm.final_model == "claude-sonnet-5-5"     # "" leaves it alone
     assert engine.config.stt.engine == "mock"
     assert engine._stt_facts is None                             # the pill re-probes
     with pytest.raises(ValueError, match="cannot use STT engine"):

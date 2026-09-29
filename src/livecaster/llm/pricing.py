@@ -26,6 +26,7 @@ PRICING: dict[str, Price] = {
     "e2ee-deepseek-v4-flash": Price(0.21, 0.042, 0.42),
     # Claude through Venice — Venice's own rates, not Anthropic's list prices.
     "claude-sonnet-5": Price(3.0, 0.30, 15.0),
+    "claude-sonnet-5-5": Price(3.75, 0.375, 18.75),
     "claude-opus-5": Price(6.0, 0.60, 30.0),
     "claude-fable-5-1": Price(12.0, 0.30, 60.0),
     "openai-gpt-56-terra": Price(3.125, 0.3125, 18.75),
