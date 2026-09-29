@@ -6,6 +6,22 @@ outline against the recent transcript. The UI shows your outline as a **live map
 covered topics get struck through, topics that just became relevant light up with a reason and a
 suggested segue, and follow-ups plus "things we need to link" collect in a side panel.
 
+<!-- jooray-links:start -->
+### More from me
+
+**Related projects**
+
+- [podcaster-boost-dashboard](https://github.com/jooray/podcaster-boost-dashboard): turn Core Lightning invoices into a podcasting 2.0 boost dashboard
+- [rss2podcast](https://github.com/jooray/rss2podcast): turn blogs and articles into a podcast
+- [markdown2audio](https://github.com/jooray/markdown2audio): convert Markdown to audio with StyleTTS
+- [kindbeamer](https://github.com/jooray/kindbeamer): open-source Send to Kindle client for macOS, Linux and Android
+- [reformatter-translator](https://github.com/jooray/reformatter-translator): reformat OCRed books and translate them with an LLM
+
+**Full project showcase:** [Livecaster in my project showcase](https://juraj.bednar.io/showcase/#MED-04), or [all my projects](https://juraj.bednar.io/showcase/).
+
+I write about building things on [my blog](https://juraj.bednar.io/en/blog-en/). I also wrote a cypherpunk novel, [Tamers of Entropy](https://tamersofentropy.net/), and there is a [trailer](https://tamersofentropy.net/#trailer).
+<!-- jooray-links:end -->
+
 When the session ends it writes show notes in the language of the podcast: what was covered and
 what was not, chapters with timestamps, title and description candidates, and mentions with links
 or explicit link TODOs.
